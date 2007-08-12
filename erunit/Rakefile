@@ -1,0 +1,58 @@
+require "rake"
+require "rake/packagetask"
+require "rake/clean"
+include Rake
+
+task :default => :erunit_package
+
+ER_VERSION = '0.1.2'
+
+task :compile
+task :compile_test => :compile
+
+src_pair = %w{src ebin}
+test_pair = %w{test ebin_test}
+
+[
+  src_pair +  [:compile],
+  test_pair + [:compile_test]
+].each do |list|
+  target, dest, compile_target = list
+  FileList[target + '/*.erl'].each do |src|
+    beam = src.pathmap("%{^#{target},#{dest}}X.beam")
+    file beam => src do
+      sh "erlc -o #{beam.pathmap("%d")} #{src}"
+    end
+    task compile_target => beam
+  end
+end
+
+task :test => [:compile_test] do
+  sh "erl -noshell -s erunit_suite main -s init stop"
+end
+
+PackageTask.new('erunit', ER_VERSION) do |p|
+  (%w{bin} + src_pair + test_pair).each do |f|
+    p.package_files.include(f + '/**/*')
+  end
+  p.package_files.include("info")
+  p.package_files.include("Rakefile")
+  p.need_zip = true
+end
+
+task :erunit_package => [:clobber_package, :test, :package]
+
+def perform_deploy
+  sh "sudo mkdir -p /opt/local/lib/erlang/lib/erunit"
+  sh "sudo cp -R -f pkg/erunit-#{ER_VERSION}/* /opt/local/lib/erlang/lib/erunit"
+end
+
+task :force_deploy_no_tests => [:clobber, :compile, :package] do
+  perform_deploy
+end
+
+task :deploy => :erunit_package do
+  perform_deploy
+end
+
+CLOBBER.add('**/*.beam')

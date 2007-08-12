@@ -1,0 +1,2 @@
+#!/bin/sh
+erl -noshell -s erunit_suite main $1 -s init stop
