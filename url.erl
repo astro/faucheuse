@@ -1,5 +1,5 @@
 -module(url).
--export([parse/1, string/1]).
+-export([parse/1, string/1, test/0]).
 
 % -> {Proto,Host,Port,Path,Query}
 %  | {error}
@@ -73,6 +73,8 @@ parse_path(S) ->
 	    {C2, S3} = parse_path(S2),
 	    {[C | C2], S3}
     end.
+
+
        
 string({Proto, Host, Port, Path, Query}) ->
     if
@@ -98,3 +100,16 @@ string({Proto, Host, Port, Path, Query}) ->
 	    _ ->
 		"?" ++ Query
 	end.
+
+
+
+test_url(S, Url) ->
+    Url = parse(S),
+    S = string(Url),
+    ok.
+
+test() ->
+    % Empty path
+    {http, "spaceboyz.net", 80, "/", false} = parse("http://spaceboyz.net"),
+    % Smoke
+    test_url("http://spaceboyz.net/", {http, "spaceboyz.net", 80, "/", false}).
