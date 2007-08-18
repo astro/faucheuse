@@ -9,7 +9,6 @@ add(Pid, E) ->
     Pid ! {self(), add, E}.
 
 main(Queue, Interval, Last) ->
-    process_flag(trap_exit, true),
     case Queue of
 	[] ->
 	    Next = infinity;
@@ -25,12 +24,7 @@ main(Queue, Interval, Last) ->
 	    receive
 		{Pid, add, E} ->
 		    Queue2 = Queue ++ [{Pid, E}],
-		    ?MODULE:main(Queue2, Interval, Last);
-		{'EXIT', From, Reason} ->
-		    io:format("timed_queue: Inflictor (~p) died with reason ~p, exiting~n", [From, Reason]),
-		    throw(inflictor_died);
-		Garbage ->
-		    io:format("timed_queue received garbage: ~p~n", [Garbage])
+		    ?MODULE:main(Queue2, Interval, Last)
 	    after Next ->
 		    {Queue2, Last2} = shift_next(Queue, Last),
 		    ?MODULE:main(Queue2, Interval, Last2)
@@ -56,10 +50,7 @@ test() ->
 test(TQ, I) ->
     receive
 	{elem, I2, N} ->
-	    io:format("<~p> test received ~p ~p~n", [now_(), I2, N]);
-	{'EXIT', _, _} ->
-	    io:format("TQ died~n"),
-	    throw(tq_died)
+	    io:format("<~p> received ~p ~p~n", [now_(), I2, N])
     after 100 ->
 	    case random:uniform(30) of
 		1 ->
