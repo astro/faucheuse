@@ -1,5 +1,5 @@
 -module(timed_queue).
--export([create/1, add/2, test/0]).
+-export([create/1, add/2, emit_next/1, filter/2, test/0]).
 -export([main/3, test/2]). % Internal use only
 
 create(Interval) ->
@@ -7,6 +7,16 @@ create(Interval) ->
 
 add(Pid, E) ->
     Pid ! {self(), add, E}.
+
+%%
+% Tell the timed_queue process to take the front element
+% from the queue and sent it to the process which added
+% added it to the queue.
+emit_next(Pid) ->
+    Pid ! {self(), emit_next}.
+
+filter(Pid, Filter) ->
+    Pid ! {self(), filter, Filter}.
 
 main(Queue, Interval, Last) ->
     case Queue of
@@ -24,6 +34,14 @@ main(Queue, Interval, Last) ->
 	    receive
 		{Pid, add, E} ->
 		    Queue2 = Queue ++ [{Pid, E}],
+		    ?MODULE:main(Queue2, Interval, Last);
+		{_, emit_next} ->
+		    {Queue2, Last2} = shift_next(Queue, Last),
+		    ?MODULE:main(Queue2, Interval, Last2);
+		{_, filter, Filter} ->
+		    Queue2 = lists:filter(fun({_, E}) ->
+						  Filter(E)
+					  end, Queue),
 		    ?MODULE:main(Queue2, Interval, Last)
 	    after Next ->
 		    {Queue2, Last2} = shift_next(Queue, Last),
