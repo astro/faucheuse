@@ -82,8 +82,9 @@ main(LookupQueue, Results) ->
 	    % Put back in queue
 	    timed_queue:add(LookupQueue, {do_lookup, Caller, Name, Family});
 
-	{lookup_result, Name, Family, Addresses} ->
+	{lookup_result, Name, Family, Addresses} = A ->
 	    % Insert into Results
+	    io:format("~p (~p)~n", [A, ets:lookup(Results, Name)]),
 	    case Family of
 		inet ->
 		    Inet = Addresses,
@@ -94,33 +95,29 @@ main(LookupQueue, Results) ->
 	    end,
 	    ets:insert(Results, {Name, Inet, Inet6}),
 
-	    if
 		% Nothing nil or pending anymore?
-		is_list(Inet) and is_list(Inet6) ->
-		    % Flush LookupQueue
-		    notify_requesters(LookupQueue, Name, Inet ++ Inet6);
-		true ->
-		    waiting
-	    end
+	    Notify = is_list(Inet) and is_list(Inet6),
+	    io:format("Notify: ~p~n", [Notify]),
+	    Dns = self(),
+	    timed_queue:filter(LookupQueue,
+			       fun({do_lookup, Caller, Name_, Family_})
+				  when (Name =:= Name_) and (Family =:= Family_) ->
+				       if
+					   Notify ->
+					       Dns ! {notify_requester, Caller, Name, Inet ++ Inet6},
+					       false;
+					   true ->
+					       false
+				       end;
+				  ({do_lookup, _, _, _}) ->
+				       true
+			       end),
+	    io:format("Filtered~n");
 
+	{notify_requester, Caller, Name, Addresses} ->
+	    Caller ! {lookup, Name, Addresses}
     end,
     ?MODULE:main(LookupQueue, Results).
-
-notify_requesters(LookupQueue, Name, Addresses) ->
-    Notifiers = ets:new(notifiers_temp_, [bag | private]),
-    io:format("Filtering~n"),
-    timed_queue:filter(LookupQueue, fun({do_lookup, Caller, Name_, _}) when Name =:= Name_ ->
-					    io:format("Notifiers: inserting ~p~n", [Caller]),
-					    ets:insert(Notifiers, {Caller}),
-					    false;
-				       ({do_lookup, _, _, _}) ->
-					    true
-				    end),
-    ets:foldl(fun({Caller}, 0) ->
-		      Caller ! {lookup, Name, Addresses}
-	      end, 0, Notifiers),
-    ets:delete(Notifiers). % TODO: Ensure deletion (catch)
-
 
 %%
 % Perform the actual query
