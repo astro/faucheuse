@@ -3,7 +3,7 @@
 -export([run/1, main/2, do_lookup/2]).
 
 start() ->
-    start(100). % Default LookupInterval is 100ms
+    start(200). % Default LookupInterval is 100ms
 
 start(LookupInterval) ->
     Pid = spawn_link(?MODULE, run, [LookupInterval]),

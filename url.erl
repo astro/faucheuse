@@ -22,7 +22,6 @@ parse(S) ->
 	       {_, P} ->
 		   P
 	   end,
-    io:format("S2: ~p~n", [S2]),
     {Path, Query} = case S2 of
 			"" ->
 			    {"/", ""};
@@ -57,7 +56,6 @@ parse_host(S) ->
     end.
 
 parse_port(S) ->
-    io:format("parse_port(~s)~n", [S]),
     case S of
 	[$/ | _] ->
 	    {"", S};
@@ -71,7 +69,6 @@ parse_port(S) ->
     end.
 
 parse_path(S) ->
-    io:format("parse_path(~s)~n", [S]),
     case S of
 	[$? | S2] ->
 	    {"", S2};

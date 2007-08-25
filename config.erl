@@ -1,6 +1,15 @@
 -module(config).
--export([start/0, start/1]).
--export([run/1]).
+-export([start/0, start/1, urls/0]).
+-export([main/1]).
+
+
+urls() ->
+    config ! {self(), get_urls},
+    receive
+	{urls, Urls} ->
+	    Urls
+    end.
+
 
 start() ->
     start("harvester.cfg").
@@ -14,7 +23,7 @@ start(Filename) ->
 	{error, Reason} ->
 	    io:format("Cannot open ~p: ~p~n", [Filename, Reason]),
 	    exit(Reason);
-	{ok, Config} ->
+	{ok, [Config | _]} ->
 	    case whereis(config) of
 		undefined ->
 		    ok;
@@ -23,8 +32,29 @@ start(Filename) ->
 		    exit(config, kill)
 	    end,
 
-	    Pid = spawn_link(?MODULE, run, [Config]),
+	    Pid = spawn_link(?MODULE, main, [Config]),
 	    register(config, Pid),
 	    Pid
     end.
 
+main(Config) ->
+    dbg:tpl(?MODULE,[{'_',[],[{message,{return_trace}}]}]),
+  
+    receive
+	{Pid, get_urls} ->
+	    io:format("get_urls from ~p~n", [Pid]),
+	    io:format("Config: ~p~n", [Config]),
+	    {value, {collections, Collections}} = lists:keysearch(collections, 1, Config),
+	    io:format("Collections: ~p~n", [Collections]),
+	    Urls = lists:usort(
+		     % flatten with depth = 1
+		     lists:foldl(fun({_, UrlList}, AccIn) ->
+					 AccIn ++ UrlList
+				 end,
+				 [],
+				 Collections) ),
+	    Pid ! {urls, Urls}
+    end,
+    ?MODULE:main(Config).
+
+    
