@@ -1,6 +1,7 @@
 -module(url).
 -export([parse/1, string/1, test/0]).
 
+% TODO: fragment
 % -> {Proto,Host,Port,Path,Query}
 %  | {error}
 parse(S) ->
@@ -118,6 +119,6 @@ test() ->
     {http, "spaceboyz.net", 80, "/", ""} = parse("http://spaceboyz.net"),
     {http, "example", 80, "/", "test"} = parse("http://example?test"),
     {https, "example", 8443, "/", "test"} = parse("https://example:8443?test"),
-    % Smoke
+    % Bidirectional
     test_url("http://spaceboyz.net/", {http, "spaceboyz.net", 80, "/", ""}),
     test_url("https://nsa.gov:8443/login?secure", {https, "nsa.gov", 8443, "/login", "secure"}).
