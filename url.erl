@@ -1,12 +1,12 @@
 -module(url).
--export([parse/1, get_path_query/1, to_string/1, test/0]).
+-export([parse/1, get_path_query/1, to_string/1, join/2, test/0]).
 
 -include("url.hrl").
 
 parse(S) ->
     case string:str(S, "://") of
 	0 ->
-	    xxx;
+	    parse_path(#url{type = relative}, S);
 	_->
 	    URL = parse_scheme(#url{type = absolute}, S),
 	    case URL#url.path of
@@ -72,6 +72,9 @@ parse_port(URL, Port, [$? | S]) ->
 
 parse_port(URL, Port, [C | S]) ->
     parse_port(URL, [C | Port], S).
+
+parse_path(URL, S) ->
+    parse_path(URL, "", S).
 
 parse_path(URL, Path, []) ->
     URL#url{path = lists:reverse(Path)};
@@ -143,6 +146,66 @@ get_path_query(#url{path = Path,
 		[$? | Q]
 	end.
 
+join(_, #url{type = absolute} = U) ->
+    U;
+
+join(U, #url{path = "",
+	     q = "",
+	     fragment = Fragment}) ->
+    U#url{fragment = Fragment};
+
+join(U, #url{path = [$/ | _] = Path,
+	     q = Q,
+	     fragment = Fragment}) ->
+    U#url{path = [$/ | _] = Path,
+	  q = Q,
+	  fragment = Fragment};
+
+join(#url{path = Path1} = U, #url{path = Path2,
+				 q = Q,
+				 fragment = Fragment}) ->
+    Path1E1 = tokenize(Path1, "/"),
+    Path1E = lists:sublist(Path1E1, length(Path1E1) - 1),
+    Path2E = tokenize(Path2, "/"),
+    Path = case string:join(join_paths(lists:reverse(Path1E), Path2E), "/") of
+	       [$/ | _] = P -> P;
+	       P -> [$/ | P]
+	   end,
+    U#url{path = Path,
+	  q = Q,
+	  fragment = Fragment}.
+
+
+join_paths(Path1, []) ->
+    lists:reverse(Path1);
+
+join_paths(Path1, ["." | Path2]) ->
+    join_paths(Path1, Path2);
+
+join_paths([], [".." | Path2]) ->
+    join_paths([], Path2);
+join_paths([_ | Path1], [".." | Path2]) ->
+    join_paths(Path1, Path2);
+
+join_paths(Path1, [Dir | Path2]) ->
+    join_paths([Dir | Path1], Path2).
+
+
+%% string:tokenize/2 returns [] for ("/", "/") instead of ["", ""]
+tokenize(S, Tokens) ->
+    tokenize(S, Tokens, [""]).
+
+tokenize([], _, R) ->
+    lists:reverse(R);
+
+tokenize([T | S], Tokens, [R1 | R]) ->
+    case lists:member(T, Tokens) of
+	true ->
+	    tokenize(S, Tokens, ["", R1 | R]);
+	false ->
+	    tokenize(S, Tokens, [R1 ++ [T] | R])
+    end.
+
 
 test_url(S, Url) ->
     Url = parse(S),
@@ -150,10 +213,13 @@ test_url(S, Url) ->
     ok.
 
 test() ->
-    % Empty path
+    %% Empty path
     {url, absolute, http, "spaceboyz.net", 80, "/", "", ""} = parse("http://spaceboyz.net"),
     {url, absolute, http, "example", 80, "/", "test", ""} = parse("http://example?test"),
     {url, absolute, https, "example", 8443, "/", "test", ""} = parse("https://example:8443?test"),
-    % Bidirectional
+    %% Bidirectional
     test_url("http://spaceboyz.net/", {url, absolute, http, "spaceboyz.net", 80, "/", "", ""}),
-    test_url("https://nsa.gov:8443/login?secure#form", {url, absolute, https, "nsa.gov", 8443, "/login", "secure", "form"}).
+    test_url("https://nsa.gov:8443/login?secure#form", {url, absolute, https, "nsa.gov", 8443, "/login", "secure", "form"}),
+    %% Join
+    {url, absolute, http, "spaceboyz.net", 80, "/~user/", "", ""} = join(parse("http://spaceboyz.net/~astro/foo/baz.html"), parse("./../../~user/")).
+
