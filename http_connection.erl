@@ -52,14 +52,38 @@ handle_cast({connect, Addr, Port}, #state{socket = none} = State) ->
 		 {_, _, _, _} -> inet;
 		 {_, _, _, _, _, _, _, _} -> inet6
 	     end,
-    {ok, Socket} = gen_tcp:connect(Addr, Port, [list, Family, {active, true}]),
-    %% TODO: connection error? signal error to all with same address
-    error_logger:info_msg("Connected to ~p:~p = ~p~n", [Addr, Port, Socket]),
-    NewState = State#state{addr = Addr,
-			   port = Port,
-			   socket = Socket},
-    NewState2 = requests_send_ahead(NewState),
-    {noreply, NewState2}.
+    case gen_tcp:connect(Addr, Port, [list, Family, {active, true}]) of
+	{ok, Socket} ->
+	    error_logger:info_msg("Connected to ~p:~p = ~p~n", [Addr, Port, Socket]),
+	    NewState = State#state{addr = Addr,
+				   port = Port,
+				   socket = Socket},
+	    NewState2 = requests_send_ahead(NewState),
+	    {noreply, NewState2};
+	{error, Reason} ->
+	    %% connection error? signal error to all with same address
+	    I = self(),
+	    F = fun() ->
+			Requests =
+			    mnesia:select(http_request,
+					  [{#http_request{scheme = http,
+							  addr = Addr,
+							  port = Port,
+							  _ = '_'},
+					    [], ['$_']}]),
+			lists:foreach(
+			  fun(#http_request{listener = Listener,
+					    worker = Worker} = Request)
+			     when Worker =:= none;
+				  Worker =:= I ->
+				  Listener ! {error, Reason},
+				  mnesia:delete_object(Request);
+			     (_) -> ignore
+			  end, Requests)
+		end,
+	    {atomic, _} = mnesia:transaction(F),
+	    {stop, closed, State#state{socket = none, requests = []}}
+    end.
 
 handle_info({tcp, _, Data}, State) ->
     NewState = handle_data(Data, State),

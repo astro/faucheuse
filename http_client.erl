@@ -34,6 +34,8 @@ request(#url{scheme = Scheme,
 						     listener = self()}}),
     receive
 	{response, _, _, _} = Response ->
+	    Response;
+	{error, _} = Response ->
 	    Response
     end;
 
