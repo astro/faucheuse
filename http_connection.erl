@@ -29,13 +29,20 @@
 	       }).
 -include("http_request.hrl").
 
+%% TODO: implement response timeout
+-define(CONNECT_TIMEOUT, 10).
+
 %%====================================================================
 %% API
 %%====================================================================
 start_link(Addr, Port) ->
-    {ok, Pid} = gen_server:start_link(?MODULE, [], []),
-    gen_server:cast(Pid, {connect, Addr, Port}),
-    {ok, Pid}.
+    case gen_server:start_link(?MODULE, [], []) of
+	{ok, Pid} ->
+	    gen_server:cast(Pid, {connect, Addr, Port}),
+	    {ok, Pid};
+	R ->
+	    R
+    end.
 
 %%====================================================================
 %% gen_server callbacks
@@ -52,7 +59,9 @@ handle_cast({connect, Addr, Port}, #state{socket = none} = State) ->
 		 {_, _, _, _} -> inet;
 		 {_, _, _, _, _, _, _, _} -> inet6
 	     end,
-    case gen_tcp:connect(Addr, Port, [list, Family, {active, true}]) of
+    case gen_tcp:connect(Addr, Port,
+			 [list, Family, {active, true}],
+			 ?CONNECT_TIMEOUT * 1000) of
 	{ok, Socket} ->
 	    error_logger:info_msg("Connected to ~p:~p = ~p~n", [Addr, Port, Socket]),
 	    NewState = State#state{addr = Addr,
