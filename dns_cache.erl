@@ -27,6 +27,7 @@
 start_link() ->
     gen_server:start_link({local, ?SERVER}, ?MODULE, [], []).
 
+%% TODO: recognize numeric addresses
 lookup(Name) ->
     case gen_server:call(?SERVER, {lookup, Name}, 5000) of
 	{ok, Addresses} ->

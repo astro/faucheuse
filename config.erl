@@ -1,60 +1,66 @@
 -module(config).
--export([start/0, start/1, urls/0]).
--export([main/1]).
 
+-behaviour(gen_server).
 
-urls() ->
-    config ! {self(), get_urls},
-    receive
-	{urls, Urls} ->
-	    Urls
-    end.
+%% API
+-export([start_link/1, all_urls/0]).
 
+%% gen_server callbacks
+-export([init/1, handle_call/3, handle_cast/2, handle_info/2,
+	 terminate/2, code_change/3]).
 
-start() ->
-    start("harvester.cfg").
+-define(SERVER, ?MODULE).
 
-start(Filename) ->
-    %{ok, Config} = file:consult(Filename),
+%%====================================================================
+%% API
+%%====================================================================
+all_urls() ->
+    gen_server:call({global, ?SERVER}, all_urls).
+
+start_link(Filename) ->
+    gen_server:start_link({global, ?SERVER}, ?MODULE, [Filename], []).
+
+%%====================================================================
+%% gen_server callbacks
+%%====================================================================
+init([Filename]) ->
     case file:consult(Filename) of
 	{error, {Line, erl_scan, scan}} ->
-	    io:format("Syntax error in ~p, line ~p~n", [Filename, Line]),
-	    exit(parse);
+	    error_logger:error_msg("Syntax error in ~p, line ~p~n",
+				   [Filename, Line]),
+	    {stop, parse};
 	{error, Reason} ->
-	    io:format("Cannot open ~p: ~p~n", [Filename, Reason]),
-	    exit(Reason);
+	    error_logger:error_msg("Cannot open ~p: ~p~n",
+				   [Filename, Reason]),
+	    {stop, Reason};
 	{ok, [Config | _]} ->
-	    case whereis(config) of
-		undefined ->
-		    ok;
-		_ ->
-		    io:format("config still runs, killing~n"),
-		    exit(config, kill)
-	    end,
-
-	    Pid = spawn_link(?MODULE, main, [Config]),
-	    register(config, Pid),
-	    Pid
+	    {ok, Config}
     end.
 
-main(Config) ->
-    dbg:tpl(?MODULE,[{'_',[],[{message,{return_trace}}]}]),
-  
-    receive
-	{Pid, get_urls} ->
-	    io:format("get_urls from ~p~n", [Pid]),
-	    io:format("Config: ~p~n", [Config]),
-	    {value, {collections, Collections}} = lists:keysearch(collections, 1, Config),
-	    io:format("Collections: ~p~n", [Collections]),
-	    Urls = lists:usort(
-		     % flatten with depth = 1
-		     lists:foldl(fun({_, UrlList}, AccIn) ->
-					 AccIn ++ UrlList
-				 end,
-				 [],
-				 Collections) ),
-	    Pid ! {urls, Urls}
-    end,
-    ?MODULE:main(Config).
+handle_call(all_urls, _From, Config) ->
+    Collections = collections(Config),
+    Reply = lists:foldl(fun({_Name, URLs}, R) ->
+				URLs ++ R
+			end, [], Collections),
+    {reply, Reply, Config}.
 
-    
+handle_cast(_Msg, Config) ->
+    {noreply, Config}.
+
+handle_info(_Info, Config) ->
+    {noreply, Config}.
+
+terminate(_Reason, _Config) ->
+    ok.
+
+code_change(_OldVsn, Config, _Extra) ->
+    {ok, Config}.
+
+%%--------------------------------------------------------------------
+%%% Internal functions
+%%--------------------------------------------------------------------
+
+collections(Config) ->
+    {value, {_, Collections}} = lists:keysearch(collections, 1, Config),
+    Collections.
+

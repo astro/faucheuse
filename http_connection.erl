@@ -100,6 +100,12 @@ handle_info({tcp_closed, _}, #state{dumb = true,
     {stop, normal, State};
 
 handle_info({tcp_closed, _}, State) ->
+    if
+	State#state.mode == packet ->
+	    error_logger:info_msg("closing, packet_length: ~p", [State#state.packet_length]);
+	true ->
+	    o
+    end,
     {stop, closed, State}.
 
 terminate(Reason, #state{requests = [Request | _]})
@@ -150,7 +156,6 @@ requests_send_ahead(#state{socket = Socket,
 		  end, R)
 	end,
     {atomic, NewRequests} = mnesia:transaction(F),
-    io:format("NewRequests:~p~n",[NewRequests]),
     lists:foreach(
       fun(#http_request{host = Host,
 			path = Path}) ->
@@ -191,13 +196,6 @@ one_request_done(#state{requests = [Request | Requests]} = State) ->
 
 %% HTTP Engine
 
-handle_data([], #state{mode = packet,
-		       current_packet = [_ | _] = Packet} = State) ->
-    handle_chunk(lists:reverse(Packet), State#state{current_packet = ""});
-
-handle_data([], State) ->
-     State;
-
 handle_data([$\r | Data], #state{mode = line} = State) ->
     handle_data(Data, State);
 
@@ -225,7 +223,14 @@ handle_data([Char | Data], #state{mode = packet,
 				  current_packet = Packet,
 				  packet_length = Length} = State) ->
     handle_data(Data, State#state{current_packet = [Char | Packet],
-				  packet_length = Length - 1}).
+				  packet_length = Length - 1});
+
+handle_data([], #state{mode = packet,
+		       current_packet = [_ | _] = Packet} = State) ->
+    handle_chunk(lists:reverse(Packet), State#state{current_packet = ""});
+
+handle_data([], State) ->
+     State.
 
 
 %% state = status
@@ -248,8 +253,8 @@ handle_line("",
 		   requests = [#http_request{host = Host, path = Path,
 					     listener = Listener} | _]} = State) ->
 
-    error_logger:info_msg("Response for ~p ~p: ~p",
-			  [Host, Path, {Code, Status, Headers}]),
+    error_logger:info_msg("~p got response for ~p ~p:~n~p",
+			  [self(), Host, Path, {Code, Status, Headers}]),
     Listener ! {response, Code, Status, Headers},
 
     Chunked =
