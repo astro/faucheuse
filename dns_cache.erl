@@ -28,8 +28,9 @@ start_link() ->
     gen_server:start_link({local, ?SERVER}, ?MODULE, [], []).
 
 %% TODO: recognize numeric addresses
+-define(LOOKUP_TIMEOUT, 30).
 lookup(Name) ->
-    case gen_server:call(?SERVER, {lookup, Name}, 5000) of
+    case gen_server:call(?SERVER, {lookup, Name}, ?LOOKUP_TIMEOUT * 1000) of
 	{ok, Addresses} ->
 	    Addresses;
 	{error, Reason} ->
@@ -110,20 +111,23 @@ handle_cast({result, Name, Result}, State) ->
 		  end, Requesters),
     {noreply, State}.
 
-handle_info({'EXIT', From, Reason}, State)
-  when Reason =/= normal ->
+handle_info({'EXIT', From, Reason}, State) ->
     Result = {error, Reason},
     F = fun() ->
-		[Q] = mnesia:select(dnsquery,
-				    [{#dnsquery{worker = From,
-						_ = '_'},
-				      [], ['$$']}]),
-		mnesia:write(Q#dnsquery{state = done,
-					result = Result,
-					updated = current_timestamp(),
-					worker = none,
-					requesters = []}),
-		Q#dnsquery.requesters
+		case mnesia:select(dnsquery,
+				   [{#dnsquery{worker = From,
+					       _ = '_'},
+				     [], ['$$']}]) of
+		    [Q] ->
+			mnesia:write(Q#dnsquery{state = done,
+						result = Result,
+						updated = current_timestamp(),
+						worker = none,
+						requesters = []}),
+			Q#dnsquery.requesters;
+		    _ ->
+			[]
+		end
 	end,
     {atomic, Requesters} = mnesia:transaction(F),
     lists:foreach(fun(Requester) ->

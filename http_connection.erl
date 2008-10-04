@@ -62,6 +62,8 @@ handle_cast({connect, Addr, Port}, #state{socket = none} = State) ->
 	    {noreply, NewState2};
 	{error, Reason} ->
 	    %% connection error? signal error to all with same address
+	    error_logger:error_msg("Cannot connect to ~p:~p: ~p",
+				   [Addr, Port, Reason]),
 	    I = self(),
 	    F = fun() ->
 			Requests =
@@ -95,13 +97,18 @@ handle_info({tcp, _, Data}, State) ->
     end;
 
 handle_info({tcp_closed, _}, #state{dumb = true,
-				    requests = [Request | _]} = State) ->
-    request_done(Request),
-    {stop, normal, State};
+				    socket = Socket} = State) ->
+    if
+	Socket =/= none ->
+	    NewState = one_request_done(State),
+	    {stop, normal, NewState};
+	true ->
+	    {stop, normal, State}
+    end;
 
 handle_info({tcp_closed, _}, State) ->
     if
-	State#state.mode == packet ->
+	State#state.mode =:= packet ->
 	    error_logger:info_msg("closing, packet_length: ~p", [State#state.packet_length]);
 	true ->
 	    o
@@ -189,10 +196,17 @@ request_done(Request) ->
 	end,
     {atomic, _} = mnesia:transaction(F).
 
-one_request_done(#state{requests = [Request | Requests]} = State) ->
+one_request_done(#state{dumb = false,
+			requests = [Request | Requests]} = State) ->
     request_done(Request),
-    requests_send_ahead(State#state{requests = Requests}).
+    requests_send_ahead(State#state{requests = Requests});
 
+one_request_done(#state{dumb = true,
+			requests = [Request | _],
+			socket = Socket} = State) ->
+    request_done(Request),
+    gen_tcp:close(Socket),
+    State#state{socket = none}.
 
 %% HTTP Engine
 
@@ -272,6 +286,13 @@ handle_line("",
 	    _ ->
 		unknown
 	end,
+    Dumb =
+	case lists:keysearch("connection", 1, Headers) of
+	    {value, {_, C}} ->
+		not(string:to_lower(C) =:= "keep-alive");
+	    _ ->
+		true
+	end,
     if
 	(Code >= 100 andalso Code =< 199) orelse
 	Code == 204 orelse
@@ -281,17 +302,17 @@ handle_line("",
 	    NewState#state{mode = line,
 			   state = status,
 			   chunked = false,
-			   dumb = false};
+			   dumb = Dumb};
 	Chunked ->
 	    State#state{mode = line,
 			state = chunksize,
 			chunked = true,
-			dumb = false};
+			dumb = Dumb};
 	Length =/= unknown ->
 	    State#state{mode = packet,
 			packet_length = Length,
 			chunked = false,
-			dumb = false};
+			dumb = Dumb};
 	true ->
 	    State#state{mode = packet,
 			packet_length = -1,

@@ -3,7 +3,7 @@
 -behaviour(gen_server).
 
 %% API
--export([start_link/0, request/1, recv/1]).
+-export([start_link/0, request/1, recv/2]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
@@ -21,35 +21,60 @@
 start_link() ->
     gen_server:start_link({local, ?SERVER}, ?MODULE, [], []).
 
+%% TODO: add references to communication
+-define(MAX_REDIRECTS, 3).
+
+request(_, 0) ->
+    {error, redirects_exceeded};
 request(#url{scheme = Scheme,
 	     host = Host,
-	     port = Port} = URL) ->
-    %% TODO: redir, addr fallback
-    [Addr | _] = dns_cache:lookup(Host),
-    gen_server:call(?SERVER, {request, #http_request{scheme = Scheme,
-						     addr = Addr,
-						     port = Port,
-						     host = Host,
-						     path = url:get_path_query(URL),
-						     listener = self()}}),
-    receive
-	{response, _, _, _} = Response ->
-	    Response;
+	     port = Port} = URL, Redirects) ->
+    Addrs = dns_cache:lookup(Host),
+    Result =
+	lists:foldl(
+	  fun(Addr, {error, _}) ->
+		  gen_server:call(?SERVER,
+				  {request, #http_request{scheme = Scheme,
+							  addr = Addr,
+							  port = Port,
+							  host = Host,
+							  path = url:get_path_query(URL),
+							  listener = self()}}),
+		  receive
+		      Reply ->
+			  Reply
+		  end;
+	     (_, Reply) ->
+		  Reply
+	  end, {error, nohosts}, Addrs),
+    case Result of
+	{response, _, _, Headers} = Response ->
+	    case lists:keysearch("location", 1, Headers) of
+		{value, {_, Location}} ->
+		    recv(fun(_, _) -> ignore end, ignore),
+		    NewURL = url:join(URL, Location),
+		    error_logger:info_msg("Redirect ~p -> ~p",
+					  [url:to_string(URL), url:to_string(NewURL)]),
+		    request(NewURL, Redirects - 1);
+		_ ->
+		    Response
+	    end;
 	{error, _} = Response ->
 	    Response
-    end;
+    end.
 
 request(URL) when is_list(URL) ->
-    request(url:parse(URL)).
+    request(url:parse(URL));
+request(#url{} = URL) ->
+    request(URL, ?MAX_REDIRECTS).
 
-recv(DataFun) ->
+recv(DataFun, Acc0) ->
     receive
 	{body, Data} ->
-	    DataFun(Data),
-	    recv(DataFun);
-	{eof} -> ok;
-	{error, Reason} -> {error, Reason}
-    after 30000 -> {error, timeout}
+	    Acc1 = DataFun(Data, Acc0),
+	    recv(DataFun, Acc1);
+	{eof} -> {ok, Acc0};
+	{error, Reason} -> {error, Reason, Acc0}
     end.
 	    
 		    

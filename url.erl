@@ -146,6 +146,11 @@ get_path_query(#url{path = Path,
 		[$? | Q]
 	end.
 
+join(U1, U2) when is_list(U1) ->
+    join(parse(U1), U2);
+join(U1, U2) when is_list(U2) ->
+    join(U1, parse(U2));
+
 join(_, #url{type = absolute} = U) ->
     U;
 
