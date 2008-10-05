@@ -147,12 +147,12 @@ code_change(_OldVsn, State, _Extra) ->
 new_connection_t({http, Addr, Port} = SAP) ->
     case mnesia:read({http_connection, SAP}) of
 	[] ->
-	    case (catch http_connection:start_link(Addr, Port)) of
+	    case http_connection:start_link(Addr, Port) of
 		{ok, Pid} ->
 		    mnesia:write(#http_connection{sap = SAP,
 						  pid = Pid}),
 		    {ok, Pid};
-		{'ERROR', Reason} ->
+		{error, Reason} ->
 		    {error, Reason}
 	    end;
 	[#http_connection{pid = Pid}] ->
