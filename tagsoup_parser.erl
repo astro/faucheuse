@@ -91,8 +91,8 @@ parse_tag(State, Name) ->
 	{"", $ } ->
 	    %% Invalid: unescaped >
 	    parse_text(NewState, "> ");
-	%%{"", "?"} ->
-	    %% TODO: parse_pi(NewState);
+	{"", $?} ->
+	    parse_pi(NewState);
 	{[_ | _], _} when C == $/; C == $> ->
 	    NewState2 = push_back(NewState, [C]),
 	    parse_attributes(NewState2, lists:reverse(Name));
@@ -190,6 +190,41 @@ parse_comment(State, Comment) ->
 	_ ->
 	    parse_comment(NewState, [C | Comment])
     end.
+
+parse_pi(State) ->
+    parse_pi(State, "").
+
+parse_pi(State, Name) ->
+    {NewState, C} = pull(State),
+    case C of
+	$  ->
+	    parse_pi_attributes(NewState, lists:reverse(Name));
+	$? ->
+	    parse_pi_attributes(NewState, lists:reverse(Name));
+	_ ->
+	    parse_pi(NewState, [C | Name])
+    end.
+
+parse_pi_attributes(State, Name) ->
+    parse_pi_attributes(State, Name, []).
+
+parse_pi_attributes(State, PiName, Attributes) ->
+    {NewState, C} = pull(State),
+    case C of
+	$  ->
+	    parse_pi_attributes(NewState, PiName, Attributes);
+	$? ->
+	    parse_pi_attributes(NewState, PiName, Attributes);
+	$> ->
+	    emit(NewState, {pi, PiName, lists:reverse(Attributes)}),
+	    parse_text(NewState);
+	_ ->
+	    {NewState2, AttrName, AttrValue} =
+		parse_attribute_name(NewState, [C]),
+	    parse_pi_attributes(NewState2, PiName,
+				[{AttrName, AttrValue} | Attributes])
+    end.
+    
 
 emit(#state{callback = Callback}, Msg) ->
     Callback(Msg).

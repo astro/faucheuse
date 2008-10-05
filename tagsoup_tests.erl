@@ -40,7 +40,9 @@ run() ->
     test_unquoted_attributes_slash(),
     test_unquoted_attributes_blank_end(),
     test_attributes_end(),
-    test_comment().
+    test_comment(),
+    test_text_tag_text_tag_text(),
+    test_pi().
 
 test_open_tag() ->
     assert("<HTML>", [{start_element, "HTML", []}]).
@@ -64,3 +66,13 @@ test_attributes_end() ->
 
 test_comment() ->
     assert("<!-- -->", []).
+
+test_text_tag_text_tag_text() ->
+    assert("foo<a>bar</a>baz", [{text, "foo"},
+				{start_element, "a", []},
+				{text, "bar"},
+				{end_element, "a"}]).
+
+test_pi() ->
+    assert("<?xml version='1.0' encoding='UTF-8'?>", [{pi, "xml", [{"version", "1.0"},
+								   {"encoding", "UTF-8"}]}]).
