@@ -24,6 +24,7 @@
 		http_code, http_status, http_headers,
 		chunked = false,
 		dumb = false,
+		zstream = none,
 		requests = [], %% [#http_request{}]
 		state = status %% status | headers | chunksize | body | chunkfooter
 	       }).
@@ -193,7 +194,7 @@ format_request(Host, Path) ->
     io_lib:format("GET ~s HTTP/1.1\r\n" ++
 		  "Host: ~s\r\n" ++
 		  "Connection: Keep-Alive\r\n" ++
-		  "Accept-Encoding: chunked, identity\r\n" ++
+		  "Accept-Encoding: chunked, deflate, identity\r\n" ++
 		  "User-Agent: Harvester-e/0\r\n" ++
 		  "\r\n", [Path, Host]).
 
@@ -205,17 +206,25 @@ request_done(Request) ->
 	end,
     {atomic, _} = mnesia:transaction(F).
 
-one_request_done(#state{dumb = false,
-			requests = [Request | Requests]} = State) ->
+one_request_done(#state{dumb = Dumb,
+			requests = [Request | Requests],
+			socket = Socket,
+			zstream = ZStream} = State) ->
     request_done(Request),
-    requests_send_ahead(State#state{requests = Requests});
-
-one_request_done(#state{dumb = true,
-			requests = [Request | _],
-			socket = Socket} = State) ->
-    request_done(Request),
-    gen_tcp:close(Socket),
-    State#state{socket = none}.
+    case ZStream of
+	none ->
+	    ignore;
+	_ ->
+	    ok = zlib:inflateEnd(ZStream),
+	    ok = zlib:close(ZStream)
+    end,
+    if
+	Dumb ->
+	    gen_tcp:close(Socket),
+	    State#state{socket = none};
+	true ->
+	    requests_send_ahead(State#state{requests = Requests})
+    end.
 
 %% HTTP Engine
 
@@ -276,10 +285,23 @@ handle_line("",
 		   requests = [#http_request{host = Host, path = Path,
 					     listener = Listener} | _]} = State) ->
 
+    %% Callback!
     error_logger:info_msg("~p got response for ~p ~p:~n~p",
 			  [self(), Host, Path, {Code, Status, Headers}]),
     Listener ! {response, Code, Status, Headers},
 
+    %% Compression?
+    NewState =
+	case lists:keysearch("content-encoding", 1, Headers) of
+	    {value, {_, "deflate"}} ->
+		ZStream = zlib:open(),
+		ok = zlib:inflateInit(ZStream),
+		State#state{zstream = ZStream};
+	    _ ->
+		State#state{zstream = none}
+	end,
+
+    %% Transfer encoding?
     Chunked =
 	case lists:keysearch("transfer-encoding", 1, Headers) of
 	    {value, {_, [$c, $h, $u, $n, $k, $e, $d | _]}} ->
@@ -307,26 +329,26 @@ handle_line("",
 	Code == 204 orelse
 	Code == 304 orelse
 	Length == 0 ->
-	    NewState = one_request_done(State),
+	    NewState2 = one_request_done(NewState),
+	    NewState2#state{mode = line,
+			    state = status,
+			    chunked = false,
+			    dumb = Dumb};
+	Chunked ->
 	    NewState#state{mode = line,
-			   state = status,
+			   state = chunksize,
+			   chunked = true,
+			   dumb = Dumb};
+	Length =/= unknown ->
+	    NewState#state{mode = packet,
+			   packet_length = Length,
 			   chunked = false,
 			   dumb = Dumb};
-	Chunked ->
-	    State#state{mode = line,
-			state = chunksize,
-			chunked = true,
-			dumb = Dumb};
-	Length =/= unknown ->
-	    State#state{mode = packet,
-			packet_length = Length,
-			chunked = false,
-			dumb = Dumb};
 	true ->
-	    State#state{mode = packet,
-			packet_length = -1,
-			chunked = false,
-			dumb = true}
+	    NewState#state{mode = packet,
+			   packet_length = -1,
+			   chunked = false,
+			   dumb = true}
     end;
 
 handle_line(HeaderLine,
@@ -362,7 +384,15 @@ handle_line(_, #state{state = chunkfooter} = State) ->
 
 
 handle_chunk(Chunk, #state{requests = [#http_request{listener = Listener} | _]} = State) ->
-    Listener ! {body, Chunk},
+    case State#state.zstream of
+	none ->
+	    Listener ! {body, Chunk};
+	ZStream ->
+	    DecompressedChunk =
+		lists:flatten([binary_to_list(D) ||
+				  D <- zlib:inflate(ZStream, list_to_binary(Chunk))]),
+	    Listener ! {body, DecompressedChunk}
+    end,
     State.
 
 handle_packet_end(#state{chunked = true} = State) ->
