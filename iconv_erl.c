@@ -17,6 +17,9 @@
  * 02111-1307 USA
  *
  */
+/*
+gcc  -g -O2 -Wall  iconv_erl.c -I/usr/lib/erlang/lib/erl_interface-3.5.7/include -I/usr/lib/erlang/usr/include -L/usr/lib/erlang/lib/erl_interface-3.5.7/lib -lerl_interface -lei -o iconv_erl.so -fpic -shared
+*/
 
 #include <stdio.h>
 #include <string.h>
@@ -59,6 +62,7 @@ static int iconv_erl_control(ErlDrvData drv_data,
    ErlDrvBinary *b;
    char *from, *to, *string, *stmp, *rstring, *rtmp;
    iconv_t cd;
+   int error = 0;
 
    ei_decode_version(buf, &index, &i);
    ei_decode_tuple_header(buf, &index, &i);
@@ -94,13 +98,14 @@ static int iconv_erl_control(ErlDrvData drv_data,
    inleft = size;
    rtmp = rstring = malloc(avail);
    while (inleft > 0) {
-      if (iconv(cd, &stmp, &inleft, &rtmp, &outleft) == (size_t) -1) {
-	 stmp++;
-	 inleft--;
+      if (iconv(cd, &stmp, &inleft, &rtmp, &outleft) == (size_t) -1)
+      {
+          error = 1;
+          break;
       }
    }
    
-   size = rtmp - rstring;
+   size = error ? 0 : rtmp - rstring;
 
    *rbuf = (char*)(b = driver_alloc_binary(size));
    memcpy(b->orig_bytes, rstring, size);

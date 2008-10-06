@@ -48,7 +48,7 @@ start_link() ->
     gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
 
 init([]) ->
-    case erl_ddll:load_driver(ejabberd:get_so_path(), iconv_erl) of
+    case erl_ddll:load_driver(".", iconv_erl) of
 	ok -> ok;
 	{error, already_loaded} -> ok
     end,
@@ -83,12 +83,18 @@ terminate(_Reason, Port) ->
     ok.
 
 
+convert(_, _, "") ->
+    "";
 
 convert(From, To, String) ->
     [{port, Port} | _] = ets:lookup(iconv_table, port),
     Bin = term_to_binary({From, To, String}),
-    BRes = port_control(Port, 1, Bin),
-    binary_to_list(BRes).
+    case port_control(Port, 1, Bin) of
+	<<>> ->
+	    error;
+	BRes ->
+	    {ok, binary_to_list(BRes)}
+    end.
 
 
 
