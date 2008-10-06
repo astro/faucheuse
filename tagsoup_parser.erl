@@ -4,7 +4,7 @@
 -export([start_link/1, push/2, stop/1]).
 
 
--record(state, {callback, buffer = ""}).
+-record(state, {callback, buffer = "", encoding = "utf-8"}).
 
 start_link(CallbackFun) ->
     Pid = spawn_link(
@@ -216,8 +216,20 @@ parse_pi_attributes(State, PiName, Attributes) ->
 	$? ->
 	    parse_pi_attributes(NewState, PiName, Attributes);
 	$> ->
-	    emit(NewState, {pi, PiName, lists:reverse(Attributes)}),
-	    parse_text(NewState);
+	    NewState2 =
+		case PiName of
+		    "xml" ->
+			case lists:keysearch("encoding", 1, Attributes) of
+			    {value, {_, Encoding}} ->
+				NewState#state{encoding = Encoding};
+			    _ ->
+				NewState
+			end;
+		    _ ->
+			NewState
+		end,
+	    emit(NewState2, {pi, PiName, lists:reverse(Attributes)}),
+	    parse_text(NewState2);
 	_ ->
 	    {NewState2, AttrName, AttrValue} =
 		parse_attribute_name(NewState, [C]),
@@ -225,6 +237,29 @@ parse_pi_attributes(State, PiName, Attributes) ->
 				[{AttrName, AttrValue} | Attributes])
     end.
     
+emit(#state{callback = Callback, encoding = Encoding}, Msg) ->
+    Callback(convert_message_encoding(Encoding, Msg)).
 
-emit(#state{callback = Callback}, Msg) ->
-    Callback(Msg).
+convert_message_encoding(Encoding, {text, Text}) ->
+    {text, try_convert_encoding(Encoding, Text)};
+
+convert_message_encoding(Encoding, {start_element, Name, Attributes}) ->
+    Attributes2 =
+	[{N, try_convert_encoding(Encoding, V)} || {N, V} <- Attributes],
+    {start_element, Name, Attributes2};
+
+convert_message_encoding(_Encoding, Msg) ->
+    Msg.
+    
+-define(DESIRED_ENCODING, "UTF-8").
+-define(FALLBACK_ENCODING, "ISO8859-1").
+try_convert_encoding(Encoding, Text) ->
+    case iconv:convert(Encoding, ?DESIRED_ENCODING,
+		       Text) of
+	{ok, Text2} ->
+	    Text2;
+	error ->
+	    {ok, Text2} = iconv:convert(?FALLBACK_ENCODING, ?DESIRED_ENCODING,
+					Text),
+	    Text2
+    end.

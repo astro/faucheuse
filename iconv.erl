@@ -84,7 +84,7 @@ terminate(_Reason, Port) ->
 
 
 convert(_, _, "") ->
-    "";
+    {ok, ""};
 
 convert(From, To, String) ->
     [{port, Port} | _] = ets:lookup(iconv_table, port),
