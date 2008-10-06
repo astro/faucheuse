@@ -246,11 +246,27 @@ handle_data(Data, #state{mode = packet,
 			 packet_length = 0} = State) ->
     %% handle_packet/2 must either modify mode or packet_length or we
     %% end up in an endless loop!
-    NewState = handle_chunk(lists:reverse(Packet),
+    NewState = handle_chunk(Packet,
 			    State#state{current_packet = ""}),
     NewState2 = handle_packet_end(NewState),
     handle_data(Data, NewState2);
 
+handle_data([_ | _] = Data, #state{mode = packet,
+				   current_packet = Packet,
+				   packet_length = Length} = State)
+  when length(Data) =< Length ->
+    handle_data([], State#state{current_packet = Packet ++ Data,
+				packet_length = Length - length(Data)});
+
+handle_data(Data, #state{mode = packet,
+			 current_packet = Packet,
+			 packet_length = Length} = State)
+  when length(Data) > Length ->
+    {Data1, Data2} = lists:split(Length),
+    handle_data(Data2, State#state{current_packet = Packet ++ Data1,
+				   packet_length = 0});
+
+%% TODO: this inefficient code has been obsoleted by the code above
 handle_data([Char | Data], #state{mode = packet,
 				  current_packet = Packet,
 				  packet_length = Length} = State) ->
@@ -259,7 +275,7 @@ handle_data([Char | Data], #state{mode = packet,
 
 handle_data([], #state{mode = packet,
 		       current_packet = [_ | _] = Packet} = State) ->
-    handle_chunk(lists:reverse(Packet), State#state{current_packet = ""});
+    handle_chunk(Packet, State#state{current_packet = ""});
 
 handle_data([], State) ->
      State.
