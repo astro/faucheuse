@@ -240,6 +240,8 @@ parse_pi_attributes(State, PiName, Attributes) ->
 emit(#state{callback = Callback, encoding = Encoding}, Msg) ->
     Callback(convert_message_encoding(Encoding, Msg)).
 
+%% TODO: entites
+
 convert_message_encoding(Encoding, {text, Text}) ->
     {text, try_convert_encoding(Encoding, Text)};
 

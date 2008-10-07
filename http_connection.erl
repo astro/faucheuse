@@ -381,7 +381,7 @@ handle_line([], #state{state = chunksize} = State) ->
     State;
 
 handle_line(ChunkLine, #state{state = chunksize} = State) ->
-    case hex_to_int(ChunkLine) of
+    case util:hex_to_int(ChunkLine) of
 	0 ->
 	    NewState = one_request_done(State),
 	    NewState#state{mode = line,
@@ -417,17 +417,4 @@ handle_packet_end(#state{chunked = true} = State) ->
 handle_packet_end(#state{chunked = false} = State) ->
     NewState = one_request_done(State),
     NewState#state{mode = line, state = status}.
-
-
-hex_to_int(S) ->
-    hex_to_int(S, 0).
-
-hex_to_int([C | S], R) when C >= $0 andalso C =< $9 ->
-    hex_to_int(S, (R bsl 4) + (C - $0));
-hex_to_int([C | S], R) when C >= $a andalso C =< $f ->
-    hex_to_int(S, (R bsl 4) + (C - $a + 10));
-hex_to_int([C | S], R) when C >= $A andalso C =< $F ->
-    hex_to_int(S, (R bsl 4) + (C - $A + 10));
-hex_to_int(_, R) ->
-    R.
 
