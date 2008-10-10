@@ -1,8 +1,27 @@
 -module(entities).
 
--export([init/0, to_string/1, test/0]).
+-export([init/0, replace_all/1, to_string/1, test/0]).
 
 -record(html_entity, {entity, str}).
+
+-define(MAX_ENTITY_LENGTH, 32).
+
+replace_all(S) ->
+    replace_all(S, "").
+
+replace_all([], R) ->
+    lists:reverse(R);
+replace_all([$& | S], R) ->
+    case string:chr(S, $;) of
+	N when N > 0 andalso N < ?MAX_ENTITY_LENGTH ->
+	    Entity = string:substr(S, 1, N - 1),
+	    S2 = string:substr(S, N + 1),
+	    replace_all(S2, lists:reverse(to_string(Entity)) ++ R);
+	_ ->
+	    replace_all(S, [$& | R])
+    end;
+replace_all([C | S], R) ->
+    replace_all(S, [C | R]).
 
 %% XML Predefined
 
@@ -77,6 +96,10 @@ test() ->
     "€" = codepoint_to_utf8(16#20AC),
     "�" = codepoint_to_utf8(16#FFFD),
     "𐑇" = codepoint_to_utf8(66631),
+    "foo & bar" = replace_all("foo &amp; bar"),
+    "foo & bar" = replace_all("foo & bar"),
+    "foo &unknown; bar" = replace_all("foo &unknown; bar"),
+    "lästig" = replace_all("l&auml;stig"),
     ok.
 
 
@@ -108,7 +131,6 @@ populate_html_entities_from_dtd(DTD) ->
 populate_html_entities_from_dtd(DTD, N) ->
     case read_entity1(DTD) of
 	{Name, Dec, DTD2} ->
-	    io:format("~p ~p~n",[Name,Dec]),
 	    mnesia:dirty_write(#html_entity{entity = Name,
 					    str = codepoint_to_utf8(Dec)}),
 	    populate_html_entities_from_dtd(DTD2, N + 1);

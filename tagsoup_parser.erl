@@ -91,12 +91,27 @@ parse_tag(State, Name) ->
 	{"", $ } ->
 	    %% Invalid: unescaped >
 	    parse_text(NewState, "> ");
+	{"", $\t} ->
+	    %% Invalid: unescaped >
+	    parse_text(NewState, "> ");
+	{"", $\n} ->
+	    %% Invalid: unescaped >
+	    parse_text(NewState, "> ");
+	{"", $\r} ->
+	    %% Invalid: unescaped >
+	    parse_text(NewState, "> ");
 	{"", $?} ->
 	    parse_pi(NewState);
 	{[_ | _], _} when C == $/; C == $> ->
 	    NewState2 = push_back(NewState, [C]),
 	    parse_attributes(NewState2, lists:reverse(Name));
 	{_, $ } ->
+	    parse_attributes(NewState, lists:reverse(Name));
+	{_, $\t} ->
+	    parse_attributes(NewState, lists:reverse(Name));
+	{_, $\n} ->
+	    parse_attributes(NewState, lists:reverse(Name));
+	{_, $\r} ->
 	    parse_attributes(NewState, lists:reverse(Name));
 	{_, _} ->
 	    parse_tag(NewState, [C | Name])
@@ -109,7 +124,13 @@ parse_attributes(State, TagName, Attributes) ->
     {NewState, C} = pull(State),
     case C of
 	$  ->
-	    parse_attributes(NewState, Attributes);
+	    parse_attributes(NewState, TagName, Attributes);
+	$\t ->
+	    parse_attributes(NewState, TagName, Attributes);
+	$\n ->
+	    parse_attributes(NewState, TagName, Attributes);
+	$\r ->
+	    parse_attributes(NewState, TagName, Attributes);
 	$/ ->
 	    emit(NewState, {start_element,
 			    TagName,
@@ -137,6 +158,12 @@ parse_attribute_name(State, Name) ->
     case C of
 	$  ->
 	    {NewState, lists:reverse(Name), lists:reverse(Name)};
+	$\t ->
+	    {NewState, lists:reverse(Name), lists:reverse(Name)};
+	$\n ->
+	    {NewState, lists:reverse(Name), lists:reverse(Name)};
+	$\r ->
+	    {NewState, lists:reverse(Name), lists:reverse(Name)};
 	$/ ->
 	    NewState2 = push_back(NewState, "/"),
 	    {NewState2, lists:reverse(Name), lists:reverse(Name)};
@@ -161,6 +188,12 @@ parse_attribute_value(State, Name, none, Value) ->
     {NewState, C} = pull(State),
     case C of
 	$  ->
+	    {NewState, Name, lists:reverse(Value)};
+	$\t ->
+	    {NewState, Name, lists:reverse(Value)};
+	$\n ->
+	    {NewState, Name, lists:reverse(Value)};
+	$\r ->
 	    {NewState, Name, lists:reverse(Value)};
 	$> ->
 	    NewState2 = push_back(NewState, ">"),
@@ -199,6 +232,12 @@ parse_pi(State, Name) ->
     case C of
 	$  ->
 	    parse_pi_attributes(NewState, lists:reverse(Name));
+	$\t ->
+	    parse_pi_attributes(NewState, lists:reverse(Name));
+	$\n ->
+	    parse_pi_attributes(NewState, lists:reverse(Name));
+	$\r ->
+	    parse_pi_attributes(NewState, lists:reverse(Name));
 	$? ->
 	    parse_pi_attributes(NewState, lists:reverse(Name));
 	_ ->
@@ -212,6 +251,12 @@ parse_pi_attributes(State, PiName, Attributes) ->
     {NewState, C} = pull(State),
     case C of
 	$  ->
+	    parse_pi_attributes(NewState, PiName, Attributes);
+	$\t ->
+	    parse_pi_attributes(NewState, PiName, Attributes);
+	$\n ->
+	    parse_pi_attributes(NewState, PiName, Attributes);
+	$\r ->
 	    parse_pi_attributes(NewState, PiName, Attributes);
 	$? ->
 	    parse_pi_attributes(NewState, PiName, Attributes);
@@ -240,14 +285,16 @@ parse_pi_attributes(State, PiName, Attributes) ->
 emit(#state{callback = Callback, encoding = Encoding}, Msg) ->
     Callback(convert_message_encoding(Encoding, Msg)).
 
-%% TODO: entites
-
 convert_message_encoding(Encoding, {text, Text}) ->
-    {text, try_convert_encoding(Encoding, Text)};
+    {text, entities:replace_all(
+	     try_convert_encoding(
+	       Encoding, Text))};
 
 convert_message_encoding(Encoding, {start_element, Name, Attributes}) ->
     Attributes2 =
-	[{N, try_convert_encoding(Encoding, V)} || {N, V} <- Attributes],
+	[{N, entities:replace_all(
+	       try_convert_encoding(
+		 Encoding, V))} || {N, V} <- Attributes],
     {start_element, Name, Attributes2};
 
 convert_message_encoding(_Encoding, Msg) ->

@@ -1,6 +1,6 @@
 -module(util).
 
--export([hex_to_int/1]).
+-export([hex_to_int/1, string_chomp/1]).
 
 
 hex_to_int(S) ->
@@ -15,3 +15,21 @@ hex_to_int([C | S], R) when C >= $A andalso C =< $F ->
 hex_to_int(_, R) ->
     R.
 
+
+string_chomp(S) ->
+    S1 = string_chomp_left(S),
+    S2 = lists:reverse(S1),
+    S3 = string_chomp_left(S2),
+    S4 = lists:reverse(S3),
+    S4.
+
+string_chomp_left([$  | S]) ->
+    string_chomp_left(S);
+string_chomp_left([$\t | S]) ->
+    string_chomp_left(S);
+string_chomp_left([$\r | S]) ->
+    string_chomp_left(S);
+string_chomp_left([$\n  | S]) ->
+    string_chomp_left(S);
+string_chomp_left(S) ->
+    S.

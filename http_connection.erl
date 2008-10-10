@@ -194,7 +194,7 @@ format_request(Host, Path) ->
     io_lib:format("GET ~s HTTP/1.1\r\n" ++
 		  "Host: ~s\r\n" ++
 		  "Connection: Keep-Alive\r\n" ++
-		  "Accept-Encoding: chunked, deflate, identity\r\n" ++
+		  "Accept-Encoding: chunked, identity\r\n" ++
 		  "User-Agent: Harvester-e/0\r\n" ++
 		  "\r\n", [Path, Host]).
 
@@ -262,7 +262,7 @@ handle_data(Data, #state{mode = packet,
 			 current_packet = Packet,
 			 packet_length = Length} = State)
   when length(Data) > Length ->
-    {Data1, Data2} = lists:split(Length),
+    {Data1, Data2} = lists:split(Length, Data),
     handle_data(Data2, State#state{current_packet = Packet ++ Data1,
 				   packet_length = 0});
 

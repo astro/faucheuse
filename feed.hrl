@@ -1,6 +1,7 @@
 -record(feed, {title,
 	       link,
 	       description}).
--record(entry, {title,
+-record(entry, {id,
+		title,
 		link,
 		description}).
