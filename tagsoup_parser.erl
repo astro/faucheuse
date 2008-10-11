@@ -74,7 +74,7 @@ parse_text(State, Text) ->
 		$< ->
 		    case Text of
 			"" -> ignore;
-			_ -> (State#state.callback)({text, lists:reverse(Text)})
+			_ -> emit(State, {text, lists:reverse(Text)})
 		    end,
 		    parse_tag(NewState);
 		_ ->
@@ -83,7 +83,7 @@ parse_text(State, Text) ->
     catch exit:normal ->
 	    if
 		Text =/= "" ->
-		    (State#state.callback)({text, lists:reverse(Text)});
+		    emit(State, {text, lists:reverse(Text)});
 		true ->
 		    ok
 	    end,

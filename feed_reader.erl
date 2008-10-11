@@ -11,7 +11,8 @@
 
 -include("feed.hrl").
 
--record(state, {parser,
+-record(state, {result_waiters = [],
+		parser,
 		url,
 		stack = [],
 		record = false, %% false | text | tree
@@ -72,10 +73,31 @@ handle_call(get_results, _From, #state{parser = none,
     Reply = {Feed2, Entries3},
     {reply, Reply, State};
 
-handle_call(get_results, From, #state{parser = Parser} = State) ->
-    tagsoup_parser:stop(Parser),
-    handle_call(get_results, From, State#state{parser = none}).
+handle_call(get_results, From, #state{result_waiters = [_ | _] = ResultWaiters} = State) ->
+    {noreply, State#state{result_waiters = [From | ResultWaiters]}};
 
+handle_call(get_results, From, #state{parser = Parser,
+				      result_waiters = []} = State) ->
+    I = self(),
+    spawn_link(fun() ->
+		       tagsoup_parser:stop(Parser),
+		       gen_server:cast(I, done)
+	       end),
+    {noreply, State#state{result_waiters = [From]}}.
+
+handle_cast(done, #state{result_waiters = ResultWaiters} = State) ->
+    State2 = State#state{parser = none,
+			 result_waiters = []},
+    State3 = lists:foldl(
+	       fun(Waiter, State1) ->
+		       %% FIXME: this is sick :-)
+		       {reply, Reply, State1New} = handle_call(get_results,
+							       Waiter,
+							       State1),
+		       gen_server:reply(Waiter, Reply),
+		       State1New
+	       end, State2, ResultWaiters),
+    {noreply, State3};
 
 %% push
 
