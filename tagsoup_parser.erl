@@ -98,6 +98,9 @@ parse_tag(State, Name) ->
     case {Name, C} of
 	{"-!", $-} ->
 	    parse_comment(NewState);
+	%% <![CDATA[
+	{"ATADC[!", $\[} ->
+	    parse_cdata(NewState);
 	{"", $ } ->
 	    %% Invalid: unescaped >
 	    parse_text(NewState, "> ");
@@ -220,6 +223,19 @@ parse_attribute_value(State, Name, Delim, Value) ->
 	_ ->
 	    parse_attribute_value(NewState, Name, Delim, [C | Value])
     end.
+
+
+parse_cdata(State) ->
+    parse_cdata(State, "").
+
+%% ]]>
+parse_cdata(State, [$>, $\], $\] | R]) ->
+    emit(State, {text, lists:reverse(R)}),
+    parse_text(State);
+parse_cdata(State, R) ->
+    {NewState, C} = pull(State),
+    parse_cdata(NewState, [C | R]).
+
 
 parse_comment(State) ->
     parse_comment(State, "").

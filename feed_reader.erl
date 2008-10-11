@@ -18,7 +18,9 @@
 		record = false, %% false | text | tree
 		current = "",
 		feed = #feed{},
-		entries = []
+		entries = [],
+		feed_done = false,
+		entry_done = false
 	       }).
 
 %% TODO: dates, xml:base
@@ -48,29 +50,40 @@ init([BaseURL]) ->
 		url = BaseURL}}.
 
 handle_call(get_results, _From, #state{parser = none,
+				       feed_done = false} = State) ->
+    {reply, incomplete, State};
+
+handle_call(get_results, _From, #state{parser = none,
 				       url = BaseURL1,
 				       feed = Feed,
 				       entries = Entries} = State) ->
     BaseURL = url:parse(BaseURL1),
-    Entries1 = lists:reverse(Entries),
+    Entries2 = case Entries of
+		   [_ | Entries1]
+		   when State#state.entry_done =/= true ->
+		       Entries1;
+		   _ ->
+		       Entries
+	       end,
+    Entries3 = lists:reverse(Entries2),
     %% Linkify
     Feed2 = Feed#feed{link = url:to_string(
 			       url:join(BaseURL, Feed#feed.link))},
     %% IDify
-    Entries2 = lists:map(
+    Entries4 = lists:map(
 		 fun(#entry{id = unknown, link = Link} = Entry) ->
 			 Entry#entry{id = Link};
 		    (Entry) ->
 			 Entry
-		 end, Entries1),
+		 end, Entries3),
     %% Linkify
-    Entries3 = lists:map(
+    Entries5 = lists:map(
 		 fun(#entry{link = Link} = Entry) ->
 			 Entry#entry{link = url:to_string(
 					      url:join(BaseURL, Link))}
-		 end, Entries2),
+		 end, Entries4),
 
-    Reply = {Feed2, Entries3},
+    Reply = {Feed2, Entries5},
     {reply, Reply, State};
 
 handle_call(get_results, From, #state{result_waiters = [_ | _] = ResultWaiters} = State) ->
@@ -208,7 +221,9 @@ start_element(#state{stack = Stack,
 		     entries = Entries} = State, _)
   when Stack =:=  ["item", "channel", "rss"];
        Stack =:= ["item", "rdf"] ->
-    State#state{record = false, entries = [#entry{} | Entries]};
+    State#state{record = false,
+		feed_done = true,
+		entry_done = false, entries = [#entry{} | Entries]};
 
 start_element(#state{stack = [_, "channel", _]} = State, _) ->
     State#state{record = text};
@@ -250,7 +265,10 @@ start_element(#state{stack = [_, "entry", "feed"]} = State, Attrs) ->
 
 start_element(#state{stack = ["entry", "feed"],
 		     entries = Entries} = State, _) ->
-    State#state{record = false, entries = [#entry{} | Entries]};
+    State#state{record = false,
+		feed_done = true,
+		entry_done = false,
+		entries = [#entry{} | Entries]};
 
 start_element(#state{stack = [_, "feed"]} = State, Attrs) ->
     State#state{record = record_by_atom_type(get_attr_s("type", Attrs))};
@@ -290,10 +308,23 @@ end_element(#state{stack = [Tag | Stack],
     State#state{record = false,
 		entries = [rss_channel_item(Entry, Tag, Current) | Entries]};
 
+end_element(#state{stack = ["item", "channel", _]} = State) ->
+    State#state{record = false,
+		feed_done = true,
+		entry_done = true};
+
 end_element(#state{stack = [_, "channel", _]} = State) ->
     State#state{record = false};
 
+end_element(#state{stack = ["channel", _]} = State) ->
+    State#state{record = false,
+		feed_done = true};
+
 %% ATOM
+
+end_element(#state{stack = ["entry", "feed"]} = State) ->
+    State#state{record = false,
+		entry_done = true};
 
 end_element(#state{stack = [Tag, "feed"],
 		   current = Current,
