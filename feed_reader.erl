@@ -82,8 +82,15 @@ handle_call(get_results, _From, #state{parser = none,
 			 Entry#entry{link = url:to_string(
 					      url:join(BaseURL, Link))}
 		 end, Entries4),
+    %% Tidy up
+    Entries6 = lists:map(
+		 fun(#entry{description = Description} = Entry)
+		    when is_list(Description) ->
+			 Entry#entry{description = tidy:tidy(Description)};
+		    (Entry) -> Entry
+		 end, Entries5),
 
-    Reply = {Feed2, Entries5},
+    Reply = {Feed2, Entries6},
     {reply, Reply, State};
 
 handle_call(get_results, From, #state{result_waiters = [_ | _] = ResultWaiters} = State) ->

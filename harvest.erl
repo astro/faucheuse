@@ -12,8 +12,8 @@ run(ConfigFile) ->
     harvester_sup:start_link(),
     config:start_link(ConfigFile),
     
-    %%URLs = config:all_urls(),
-    URLs = ["http://api.flickr.com/services/feeds/photos_public.gne?id=73915810@N00&format=atom"],
+    URLs = config:all_urls(),
+    %%URLs = ["http://blog.fukami.io/feed/atom/"],
     process_flag(trap_exit, true),
     Workers = lists:map(fun(URL) ->
 				Pid = spawn_link(fun() ->
@@ -47,20 +47,20 @@ worker(URL) ->
 
     case Response of
 	{response, 200, _, _}  ->
-	    {ok, F} = feed_reader:start_link(),
-	    {ok, _Size} = http_client:recv(
-			   fun(Data, Size1) ->
-				   Size2 = Size1 + length(Data),
-				   if
-				       Size2 > 1024 * 1024 ->
-					   exit(too_big);
-				       true ->
-					   feed_reader:push(F, Data),
-					   Size2
-				   end
-			   end, 0),
+	    {ok, F} = feed_reader:start_link(URL),
+	    (catch
+		 {ok, _Size} = http_client:recv(
+				 fun(Data, Size1) ->
+					 Size2 = Size1 + length(Data),
+					 if
+					     Size2 > 1024 * 1024 ->
+						 exit(too_big);
+					     true ->
+						 feed_reader:push(F, Data),
+						 Size2
+					 end
+				 end, 0)),
 	    {Feed, Entries} = feed_reader:get_results(F),
-error_logger:info_msg("results: ~p~n", [{Feed, Entries}]),
 	    EntriesS =
 		lists:foldr(fun(#entry{title = Title, link = Link}, R) ->
 				    [io_lib:format("~20s ~s~n",[Title, Link]) | R]

@@ -22,13 +22,15 @@ start_link() ->
 init([]) ->
     mnesia:start(),
     entities:init(),
-    {ok,{{one_for_all,0,1}, [
+    {ok,{{one_for_one,2,1}, [
 			     {iconv, {iconv, start_link, []},
 			      permanent, 1000, worker, [iconv]},
+			     {tidy, {tidy, start_link, []},
+			      permanent, 1000, worker, [tidy]},
 			     {dns_cache, {dns_cache, start_link, []},
-			      permanent, 1000, worker, [dns_cache, dns_worker]},
+			      permanent, 2000, worker, [dns_cache, dns_worker]},
 			     {http_client, {http_client, start_link, []},
-			      permanent, 1000, worker, [http_client, http_connection]}
+			      permanent, 4000, worker, [http_client, http_connection]}
 			    ]}}.
 
 %%====================================================================
