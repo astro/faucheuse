@@ -1,10 +1,28 @@
 -module(entities).
 
--export([init/0, replace_all/1, to_string/1, test/0]).
+-export([init/0, escape/1, replace_all/1, to_string/1, test/0]).
 
 -record(html_entity, {entity, str}).
 
 -define(MAX_ENTITY_LENGTH, 32).
+
+escape(S) ->
+    escape(S, "").
+
+escape([], R) ->
+    lists:reverse(R);
+escape([$< | S], R) ->
+    escape(S, [$;, $t, $l, $& | R]);
+escape([$> | S], R) ->
+    escape(S, [$;, $t, $g, $& | R]);
+escape([$& | S], R) ->
+    escape(S, [$;, $p, $m, $a, $& | R]);
+escape([$\" | S], R) ->
+    escape(S, [$;, $t, $o, $u, $q, $& | R]);
+escape([$\' | S], R) ->
+    escape(S, [$;, $s, $o, $p, $a, $& | R]);
+escape([C | S], R) ->
+    escape(S, [C | R]).
 
 replace_all(S) ->
     replace_all(S, "").

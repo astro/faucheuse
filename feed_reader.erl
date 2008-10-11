@@ -3,7 +3,7 @@
 -behaviour(gen_server).
 
 %% API
--export([start_link/0, push/2, get_results/1]).
+-export([start_link/1, push/2, get_results/1]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
@@ -12,6 +12,7 @@
 -include("feed.hrl").
 
 -record(state, {parser,
+		url,
 		stack = [],
 		record = false, %% false | text | tree
 		current = "",
@@ -19,13 +20,13 @@
 		entries = []
 	       }).
 
-%% TODO: atom @type, xml:base
+%% TODO: dates, xml:base
 
 %%====================================================================
 %% API
 %%====================================================================
-start_link() ->
-    gen_server:start_link(?MODULE, [], []).
+start_link(BaseURL) ->
+    gen_server:start_link(?MODULE, [BaseURL], []).
 
 push(Pid, Data) ->
     gen_server:cast(Pid, {push, Data}).
@@ -36,18 +37,39 @@ get_results(Pid) ->
 %%====================================================================
 %% gen_server callbacks
 %%====================================================================
-init([]) ->
+init([BaseURL]) ->
     I = self(),
     {ok, Parser} = tagsoup_parser:start_link(
 		     fun(Msg) ->
 			     gen_server:cast(I, Msg)
 		     end),
-    {ok, #state{parser = Parser}}.
+    {ok, #state{parser = Parser,
+		url = BaseURL}}.
 
-handle_call(get_results, _From, #state{parser = none} = State) ->
-    %% TODO: id-ify
-    Reply = {State#state.feed,
-	     lists:reverse(State#state.entries)},
+handle_call(get_results, _From, #state{parser = none,
+				       url = BaseURL1,
+				       feed = Feed,
+				       entries = Entries} = State) ->
+    BaseURL = url:parse(BaseURL1),
+    Entries1 = lists:reverse(Entries),
+    %% Linkify
+    Feed2 = Feed#feed{link = url:to_string(
+			       url:join(BaseURL, Feed#feed.link))},
+    %% IDify
+    Entries2 = lists:map(
+		 fun(#entry{id = unknown, link = Link} = Entry) ->
+			 Entry#entry{id = Link};
+		    (Entry) ->
+			 Entry
+		 end, Entries1),
+    %% Linkify
+    Entries3 = lists:map(
+		 fun(#entry{link = Link} = Entry) ->
+			 Entry#entry{link = url:to_string(
+					      url:join(BaseURL, Link))}
+		 end, Entries2),
+
+    Reply = {Feed2, Entries3},
     {reply, Reply, State};
 
 handle_call(get_results, From, #state{parser = Parser} = State) ->
@@ -91,6 +113,9 @@ handle_cast({end_element, Name}, #state{stack = Stack, current = Current} = Stat
 
 handle_cast({text, Text}, #state{record = text, current = Current} = State) ->
     {noreply, State#state{current = Current ++ Text}};
+
+handle_cast({text, Text}, #state{record = markup, current = Current} = State) ->
+    {noreply, State#state{current = Current ++ entities:escape(Text)}};
 
 handle_cast({text, _}, #state{record = false} = State) ->
     {noreply, State};
@@ -198,17 +223,30 @@ start_element(#state{stack = ["link", "entry", "feed"],
     State#state{record = false,
 		entries = [Entry#entry{link = NewLink} | Entries]};
 
-start_element(#state{stack = [_, "entry", "feed"]} = State, _) ->
-    State#state{record = text};
+start_element(#state{stack = [_, "entry", "feed"]} = State, Attrs) ->
+    State#state{record = record_by_atom_type(get_attr_s("type", Attrs))};
 
 start_element(#state{stack = ["entry", "feed"],
 		     entries = Entries} = State, _) ->
     State#state{record = false, entries = [#entry{} | Entries]};
 
-start_element(#state{stack = [_, "feed"]} = State, _) ->
-    State#state{record = text};
+start_element(#state{stack = [_, "feed"]} = State, Attrs) ->
+    State#state{record = record_by_atom_type(get_attr_s("type", Attrs))};
 
 %% Fall-through
+
+start_element(#state{record = markup,
+		     stack = [Name | _],
+		     current = Current} = State, Attrs) ->
+    Current2 = lists:flatten(
+		 [Current,
+		  $<, Name,
+		  lists:map(fun({K, V}) ->
+				    io_lib:format(" ~s=\"~s\"",
+						  [K, entities:escape(V)])
+			    end, Attrs),
+		  $>]),
+    State#state{current = Current2};
 
 start_element(State, _) ->
     State.
@@ -238,19 +276,25 @@ end_element(#state{stack = [_, "channel", _]} = State) ->
 end_element(#state{stack = [Tag, "feed"],
 		   current = Current,
 		   feed = Feed} = State) ->
-io:format("atom_feed ~p = ~p~n",[Tag, Current]),
     State#state{record = false,
 		feed = atom_feed(Feed, Tag, Current)};
 
 end_element(#state{stack = [Tag, "entry", "feed"],
 		   current = Current,
 		   entries = [Entry | Entries]} = State) ->
-io:format("atom_entry ~p = ~p~n",[Tag, Current]),
     State#state{record = false,
 		entries = [atom_entry(Entry, Tag, Current) | Entries]};
 
 
 %% Fall-through
+
+end_element(#state{record = markup,
+		     stack = [Name | _],
+		     current = Current} = State) ->
+    Current2 = lists:flatten(
+		 [Current,
+		  "</", Name, $>]),
+    State#state{current = Current2};
 
 end_element(State) ->
     State.
@@ -301,3 +345,7 @@ atom_entry(Entry, "content", Text) ->
     Entry#entry{description = Text};
 atom_entry(Entry, _, _) ->
     Entry.
+
+
+record_by_atom_type("html") -> text;
+record_by_atom_type(_) -> markup.
