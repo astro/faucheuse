@@ -31,12 +31,12 @@ init([]) ->
 
 handle_call({tidy, Input}, _From, #state{port = Port} = State) ->
     port_command(Port, Input),
-    io:format("Tidy on port: ~p ~s~n",[Port,Input]),
+    TS = util:current_timestamp_ms(),
     Reply = receive
 		{Port, {data, [0 | Result]}} -> {ok, Result};
 		{Port, {data, [1 | _]}} -> error
 	    end,
-    io:format("Tidy = ~p~n",[Reply]),
+    io:format("Tidy run ~p~n",[util:current_timestamp_ms() - TS]),
     {reply, Reply, State}.
 
 handle_cast(_Msg, State) ->
