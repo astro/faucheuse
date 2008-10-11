@@ -68,16 +68,26 @@ parse_text(State) ->
     parse_text(State, "").
 
 parse_text(State, Text) ->
-    {NewState, C} = pull(State),
-    case C of
-	$< ->
-	    case Text of
-		"" -> ignore;
-		_ -> (State#state.callback)({text, lists:reverse(Text)})
+    try pull(State) of
+	{NewState, C} ->
+	    case C of
+		$< ->
+		    case Text of
+			"" -> ignore;
+			_ -> (State#state.callback)({text, lists:reverse(Text)})
+		    end,
+		    parse_tag(NewState);
+		_ ->
+		    parse_text(NewState, [C | Text])
+	    end
+    catch exit:normal ->
+	    if
+		Text =/= "" ->
+		    (State#state.callback)({text, lists:reverse(Text)});
+		true ->
+		    ok
 	    end,
-	    parse_tag(NewState);
-	_ ->
-	    parse_text(NewState, [C | Text])
+	    exit(normal)
     end.
 
 parse_tag(State) ->
