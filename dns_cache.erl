@@ -48,7 +48,7 @@ init([]) ->
     {ok, #state{}}.
 
 handle_call({lookup, Name}, From, State) ->
-    Now = current_timestamp(),
+    Now = util:current_timestamp(),
     F = fun() ->
 		case mnesia:read({dnsquery, Name}) of
 		    %% New
@@ -100,7 +100,7 @@ handle_cast({result, Name, Result}, State) ->
 		[Q] = mnesia:read({dnsquery, Name}),
 		mnesia:write(Q#dnsquery{state = done,
 					result = Result,
-					updated = current_timestamp(),
+					updated = util:current_timestamp(),
 					worker = none,
 					requesters = []}),
 		Q#dnsquery.requesters
@@ -121,7 +121,7 @@ handle_info({'EXIT', From, Reason}, State) ->
 		    [Q] ->
 			mnesia:write(Q#dnsquery{state = done,
 						result = Result,
-						updated = current_timestamp(),
+						updated = util:current_timestamp(),
 						worker = none,
 						requesters = []}),
 			Q#dnsquery.requesters;
@@ -148,6 +148,3 @@ code_change(_OldVsn, State, _Extra) ->
 %%% Internal functions
 %%--------------------------------------------------------------------
 
-current_timestamp() ->
-    {MS, S, _} = now(),
-    MS * 1000000 + S.

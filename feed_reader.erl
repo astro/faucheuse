@@ -89,7 +89,8 @@ handle_call(get_results, _From, #state{parser = none,
 			 Entry#entry{description = tidy:tidy(Description)};
 		    (Entry) -> Entry
 		 end, Entries5),
-
+    %% TODO: parse tidied up, rewrite links and imgs, remove script tags
+    %% and seperate from feed_reader
     Reply = {Feed2, Entries6},
     {reply, Reply, State};
 
