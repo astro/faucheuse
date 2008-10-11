@@ -24,18 +24,18 @@ int main(int argc, char **argv )
     if (read(STDIN_FILENO, &inlen, sizeof(inlen)) != sizeof(inlen))
       exit(-1);
     inlen = ntohl(inlen);
-    fprintf(stderr, "reading %i bytes\n", inlen);
+    //fprintf(stderr, "reading %i bytes\n", inlen);
     input = malloc(inlen + 1);
     if (read(STDIN_FILENO, input, inlen) != inlen)
       exit(-1);
     input[inlen] = '\0';
-    fprintf(stderr, "read %i bytes\n", inlen);
+    //fprintf(stderr, "read %i bytes\n", inlen);
 
     TidyDoc tdoc = tidyCreate();                     // Initialize "document"
 
     ok = tidyOptSetBool( tdoc, TidyXhtmlOut, yes );  // Convert to XHTML
-    if ( ok )
-      ok = tidyOptSetBool( tdoc, TidyBodyOnly, yes );
+    /*if ( ok )
+      ok = tidyOptSetBool( tdoc, TidyBodyOnly, yes );*/
     if ( ok )
       rc = tidySetErrorBuffer( tdoc, &errbuf );      // Capture diagnostics
     if ( rc >= 0 )
@@ -51,7 +51,7 @@ int main(int argc, char **argv )
     if ( rc >= 0 )
       rc = tidySaveBuffer( tdoc, &output );          // Pretty Print
 
-    fprintf(stderr, "rc = %i\n", rc);
+    //fprintf(stderr, "rc = %i\n", rc);
     if ( rc >= 0 )
     {
       outlen = strlen(output.bp) + 1;

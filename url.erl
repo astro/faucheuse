@@ -49,6 +49,7 @@ parse_host(URL, Host, [C | S]) ->
     parse_host(URL, [C | Host], S).
 
 
+scheme_default_port(ftp) -> 21;
 scheme_default_port(http) -> 80;
 scheme_default_port(https) -> 443.
      
