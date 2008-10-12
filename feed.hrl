@@ -2,6 +2,7 @@
 	       link,
 	       description}).
 -record(entry, {id,
+		date,
 		title,
 		link,
 		description}).

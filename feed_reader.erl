@@ -3,7 +3,7 @@
 -behaviour(gen_server).
 
 %% API
--export([start_link/1, push/2, get_results/1]).
+-export([start_link/1, push/2, get_results/1, parse_date/1]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
@@ -86,7 +86,8 @@ handle_call(get_results, _From, #state{parser = none,
     Entries6 = lists:map(
 		 fun(#entry{description = Description} = Entry)
 		    when is_list(Description) ->
-			 Entry#entry{description = tidy:tidy(Description)};
+			 {ok, Description2} = tidy:tidy(Description),
+			 Entry#entry{description = Description2};
 		    (Entry) -> Entry
 		 end, Entries5),
     %% TODO: parse tidied up, rewrite links and imgs, remove script tags
@@ -410,3 +411,78 @@ atom_entry(Entry, _, _) ->
 
 record_by_atom_type("html") -> text;
 record_by_atom_type(_) -> markup.
+
+
+
+-define(DT0, {{0, 0, 0}, {0, 0, 0}}).
+
+parse_date(S) ->
+    lists:foldl(
+      fun({RE, Bindings}, undefined) ->
+	      parse_date(S, RE, Bindings);
+	 (_, R) -> R
+      end, undefined, [{"(\\d+)-(\\d+)-(\\d+)T(\\d+):(\\d+):(\\d+)", [y,mo,d,h,m,s]},
+	       %% Wed, 20 Apr 2005 19:38:15 +0200
+	       %% Fri, 22 Apr 2005 10:31:12 GMT
+	       {".+?, +(\d+) (.+?) (\d+) (\d+):(\d+):(\d+)", [d,month,y,h,m,s]},
+	       %% 06 May 2007 02:20:00
+	       {"(\d+) (.+?) (\d{4}) (\d\d):(\d\d):(\d\d)", [d,month,y,h,m,s]}]).
+
+parse_date(S, Regex, Bindings) ->
+    case re:run(S, Regex, [{capture,all,list}]) of
+	{match, [_ | Matches]} ->
+	    {DT2, _} =
+		lists:foldl(
+		  fun(_, {DT1, []}) ->
+			  {DT1, []};
+		     (Match, {DT1, [Binding | Bindings1]}) ->
+			  {parse_date_apply_binding(Binding, DT1, Match), Bindings1}
+		  end, {?DT0, Bindings}, Matches),
+	    DT2;
+	_->
+	    undefined
+    end.
+
+parse_date_apply_binding(month, {{Y, _, D}, T}, "Jan") ->
+    {{Y, 1, D}, T};
+parse_date_apply_binding(month, {{Y, _, D}, T}, "Feb") ->
+    {{Y, 2, D}, T};
+parse_date_apply_binding(month, {{Y, _, D}, T}, "Mar") ->
+    {{Y, 3, D}, T};
+parse_date_apply_binding(month, {{Y, _, D}, T}, "Apr") ->
+    {{Y, 4, D}, T};
+parse_date_apply_binding(month, {{Y, _, D}, T}, "May") ->
+    {{Y, 5, D}, T};
+parse_date_apply_binding(month, {{Y, _, D}, T}, "Jun") ->
+    {{Y, 6, D}, T};
+parse_date_apply_binding(month, {{Y, _, D}, T}, "Jul") ->
+    {{Y, 7, D}, T};
+parse_date_apply_binding(month, {{Y, _, D}, T}, "Aug") ->
+    {{Y, 8, D}, T};
+parse_date_apply_binding(month, {{Y, _, D}, T}, "Sep") ->
+    {{Y, 9, D}, T};
+parse_date_apply_binding(month, {{Y, _, D}, T}, "Oct") ->
+    {{Y, 10, D}, T};
+parse_date_apply_binding(month, {{Y, _, D}, T}, "Nov") ->
+    {{Y, 11, D}, T};
+parse_date_apply_binding(month, {{Y, _, D}, T}, "Dec") ->
+    {{Y, 12, D}, T};
+
+parse_date_apply_binding(d, {{Y, M, _}, T}, D) ->
+    {D1, ""} = string:to_integer(D),
+    {{Y, M, D1}, T};
+parse_date_apply_binding(mo, {{Y, _, D}, T}, M) ->
+    {M1, ""} = string:to_integer(M),
+    {{Y, M1, D}, T};
+parse_date_apply_binding(y, {{_, M, D}, T}, Y) ->
+    {Y1, ""} = string:to_integer(Y),
+    {{Y1, M, D}, T};
+parse_date_apply_binding(h, {D, {_, M, S}}, H) ->
+    {H1, ""} = string:to_integer(H),
+    {D, {H1, M, S}};
+parse_date_apply_binding(m, {D, {H, _, S}}, M) ->
+    {M1, ""} = string:to_integer(M),
+    {D, {H, M1, S}};
+parse_date_apply_binding(s, {D, {H, M, _}}, S) ->
+    {S1, ""} = string:to_integer(S),
+    {D, {H, M, S1}}.

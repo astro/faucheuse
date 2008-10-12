@@ -9,6 +9,7 @@ run() ->
     run("harvester.cfg").
 
 run(ConfigFile) ->
+    storage:init(),
     harvester_sup:start_link(),
     config:start_link(ConfigFile),
     
@@ -65,7 +66,8 @@ worker(URL) ->
 		lists:foldr(fun(#entry{title = Title, link = Link}, R) ->
 				    [io_lib:format("~20s ~s~n",[Title, Link]) | R]
 			    end, [], Entries),
-	    error_logger:info_msg("*** ~p: ~s~n~s", [URL, Feed#feed.title, EntriesS]);
+	    error_logger:info_msg("*** ~p: ~s~n~s", [URL, Feed#feed.title, EntriesS]),
+	    storage:put_feed(URL, Feed, Entries);
 	_ ->
 	    ignore
     end.
