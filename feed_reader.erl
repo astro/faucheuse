@@ -385,6 +385,10 @@ rss_channel_item(#entry{description = undefined} = Entry, "encoded", Text) ->
     Entry#entry{description = Text};
 rss_channel_item(#entry{description = undefined} = Entry, "description", Text) ->
     Entry#entry{description = Text};
+rss_channel_item(Entry, "pubDate", Text) ->
+    Entry#entry{date = parse_date(Text)};
+rss_channel_item(Entry, "dc:date", Text) ->
+    Entry#entry{date = parse_date(Text)};
 rss_channel_item(Entry, _, _) ->
     Entry.
 
@@ -405,6 +409,14 @@ atom_entry(Entry, "title", Text) ->
     Entry#entry{title = Text};
 atom_entry(Entry, "content", Text) ->
     Entry#entry{description = Text};
+atom_entry(Entry, "updated", Text) ->
+    Entry#entry{date = parse_date(Text)};
+atom_entry(Entry, "published", Text) ->
+    Entry#entry{date = parse_date(Text)};
+atom_entry(Entry, "modified", Text) ->
+    Entry#entry{date = parse_date(Text)};
+atom_entry(Entry, "issued", Text) ->
+    Entry#entry{date = parse_date(Text)};
 atom_entry(Entry, _, _) ->
     Entry.
 
@@ -416,17 +428,24 @@ record_by_atom_type(_) -> markup.
 
 -define(DT0, {{0, 0, 0}, {0, 0, 0}}).
 
+%% TODO: tz drift
 parse_date(S) ->
-    lists:foldl(
-      fun({RE, Bindings}, undefined) ->
-	      parse_date(S, RE, Bindings);
-	 (_, R) -> R
-      end, undefined, [{"(\\d+)-(\\d+)-(\\d+)T(\\d+):(\\d+):(\\d+)", [y,mo,d,h,m,s]},
-	       %% Wed, 20 Apr 2005 19:38:15 +0200
-	       %% Fri, 22 Apr 2005 10:31:12 GMT
-	       {".+?, +(\d+) (.+?) (\d+) (\d+):(\d+):(\d+)", [d,month,y,h,m,s]},
-	       %% 06 May 2007 02:20:00
-	       {"(\d+) (.+?) (\d{4}) (\d\d):(\d\d):(\d\d)", [d,month,y,h,m,s]}]).
+    R = lists:foldl(
+	  fun({RE, Bindings}, undefined) ->
+		  parse_date(S, RE, Bindings);
+	     (_, R) -> R
+	  end, undefined, [{"(\\d+)-(\\d+)-(\\d+)T(\\d+):(\\d+):(\\d+)", [y,mo,d,h,m,s]},
+			   %% Wed, 20 Apr 2005 19:38:15 +0200
+			   %% Fri, 22 Apr 2005 10:31:12 GMT
+			   {".+?, +(\\d+) (.+?) (\\d+) (\\d+):(\\d+):(\\d+)", [d,month,y,h,m,s]},
+			   %% 06 May 2007 02:20:00
+			   {"(\\d+) (.+?) (\\d{4}) (\\d+):(\\d+):(\\d+)", [d,month,y,h,m,s]}]),
+    case R of
+	undefined ->
+	    error_logger:warn_msg("Unrecognized date format: ~p~n", [S]),
+	    R;
+	_ -> R
+    end.
 
 parse_date(S, Regex, Bindings) ->
     case re:run(S, Regex, [{capture,all,list}]) of
