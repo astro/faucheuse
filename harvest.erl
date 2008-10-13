@@ -9,8 +9,8 @@ run() ->
     run("harvester.cfg").
 
 run(ConfigFile) ->
-    storage:init(),
     harvester_sup:start_link(),
+    storage:init(),
     config:start_link(ConfigFile),
     
     URLs = config:all_urls(),
@@ -22,7 +22,8 @@ run(ConfigFile) ->
 						 end),
 				{URL, Pid}
 			end, URLs),
-    wait_workers(Workers).
+    wait_workers(Workers),
+    templates:run().
 
 wait_workers([]) ->
     error_logger:info_msg("all workers done~n");
