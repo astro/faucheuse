@@ -9,6 +9,7 @@ run() ->
     run("harvester.cfg").
 
 run(ConfigFile) ->
+    mnesia:start(),
     storage:init(),
     harvester_sup:start_link(),
     config:start_link(ConfigFile),
@@ -22,7 +23,8 @@ run(ConfigFile) ->
 						 end),
 				{URL, Pid}
 			end, URLs),
-    wait_workers(Workers).
+    wait_workers(Workers),
+    templates:run().
 
 wait_workers([]) ->
     error_logger:info_msg("all workers done~n");

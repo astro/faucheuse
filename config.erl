@@ -3,7 +3,7 @@
 -behaviour(gen_server).
 
 %% API
--export([start_link/1, all_urls/0]).
+-export([start_link/1, all_urls/0, collections/0]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
@@ -16,6 +16,9 @@
 %%====================================================================
 all_urls() ->
     gen_server:call({global, ?SERVER}, all_urls).
+
+collections() ->
+    gen_server:call({global, ?SERVER}, collections).
 
 start_link(Filename) ->
     gen_server:start_link({global, ?SERVER}, ?MODULE, [Filename], []).
@@ -42,7 +45,10 @@ handle_call(all_urls, _From, Config) ->
     Reply = lists:foldl(fun({_Name, URLs}, R) ->
 				URLs ++ R
 			end, [], Collections),
-    {reply, Reply, Config}.
+    {reply, Reply, Config};
+
+handle_call(collections, _From, Config) ->
+    {reply, collections(Config), Config}.
 
 handle_cast(_Msg, Config) ->
     {noreply, Config}.
