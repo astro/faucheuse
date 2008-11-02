@@ -2,6 +2,9 @@
 
 -export([run/0, run/1]).
 
+%% for testing single feeds
+-export([worker/1]).
+
 
 -include("feed.hrl").
 
