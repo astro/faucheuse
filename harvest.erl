@@ -2,6 +2,9 @@
 
 -export([run/0, run/1]).
 
+%% for testing single feeds
+-export([worker/1]).
+
 
 -include("feed.hrl").
 
@@ -9,13 +12,13 @@ run() ->
     run("harvester.cfg").
 
 run(ConfigFile) ->
+    application:start(sasl),
     mnesia:start(),
-    storage:init(),
     harvester_sup:start_link(),
+    storage:init(),
     config:start_link(ConfigFile),
     
     URLs = config:all_urls(),
-    %%URLs = ["http://blog.fukami.io/feed/atom/"],
     process_flag(trap_exit, true),
     Workers = lists:map(fun(URL) ->
 				Pid = spawn_link(fun() ->

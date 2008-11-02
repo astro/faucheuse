@@ -3,6 +3,8 @@
 -export([run/0, run/2]).
 
 
+-include("feed.hrl").
+
 run() ->
     run("templates", "html").
 
@@ -10,9 +12,10 @@ run(TemplateDir, OutputDir) ->
     file:make_dir(OutputDir),
     storage:atomic(
       fun() ->
+io:format("root: ~p~n",[generate_root()]),
 	      {ok, TemplateFiles} = file:list_dir(TemplateDir),
-	      {ok, P} = erlxslt:start_link(),
-	      erlxslt:set_xml(P, tagsoup_writer:to_string(generate_root())),
+	      {ok, P} = erlxslt:start_link("../erlang/erlxslt/erlxslt"),
+	      erlxslt:set_xml(P, xml_writer:to_string(generate_root())),
 	      
 	      lists:foreach(
 		fun(TemplateFile) ->
@@ -27,18 +30,25 @@ run(TemplateDir, OutputDir) ->
     ok.
 
 generate_root() ->
-    Collections = config:collections(),
     {"collections", [],
-     lists:map(fun({CollectionName, Collection}) ->
-		       {"collection", [{"name", CollectionName}],
-			lists:map(fun(URL) ->
-					  case storage:get_feed_by_url_t of
-					      #feed{
-					  [{"feed", [],
-					    RSS ++
-					    Title ++
-					    Link ++
-					    Description
-				  end, Collection)}
-	       end, Collections)}.
-    
+     [{"collection", [{"name", atom_to_list(Name)}],
+       [case storage:get_feed_by_url_t(URL) of
+	    #feed{} = Feed ->
+		feed_to_xml(URL, Feed);
+	    _ -> []
+	end
+	|| URL <- URLs]}
+      || {Name, URLs} <- config:collections()]}.
+
+feed_to_xml(URL, Feed) ->
+    {"feed", [],
+     el_for_val("rss", URL) ++
+     el_for_val("link", Feed#feed.link) ++
+     el_for_val("title", Feed#feed.title) ++
+     el_for_val("description", Feed#feed.description)
+    }.
+
+el_for_val(_, undefined) ->
+    [];
+el_for_val(ElName, Value) when is_list(Value) ->
+    [{ElName, [], [Value]}].

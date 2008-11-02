@@ -33,7 +33,7 @@ atomic(Fun) ->
     Res.
 
 get_feed_by_url_t(URL) ->
-    case mnesia:read(feed_storage, URL) of
+    case mnesia:read({feed_storage, URL}) of
 	[#feed_storage{feed = Feed}] ->
 	    Feed;
 	_ ->
