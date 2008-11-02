@@ -58,6 +58,10 @@ handle_call(get_results, _From, #state{parser = none,
 				       feed = Feed,
 				       entries = Entries} = State) ->
     BaseURL = url:parse(BaseURL1),
+    %% Linkify
+    Feed2 = Feed#feed{link = url:to_string(
+			       url:join(BaseURL, Feed#feed.link))},
+    %% Last entry done?
     Entries2 = case Entries of
 		   [_ | Entries1]
 		   when State#state.entry_done =/= true ->
@@ -66,33 +70,32 @@ handle_call(get_results, _From, #state{parser = none,
 		       Entries
 	       end,
     Entries3 = lists:reverse(Entries2),
-    %% Linkify
-    Feed2 = Feed#feed{link = url:to_string(
-			       url:join(BaseURL, Feed#feed.link))},
+    %% Only entries with link
+    Entries4 = [Entry || #entry{link = Link} = Entry <- Entries3,
+			 Link =/= undefined],
     %% IDify
-    Entries4 = lists:map(
-		 fun(#entry{id = unknown, link = Link} = Entry) ->
+    Entries5 = lists:map(
+		 fun(#entry{id = undefined, link = Link} = Entry) ->
 			 Entry#entry{id = Link};
 		    (Entry) ->
 			 Entry
-		 end, Entries3),
-    %% Linkify
-    Entries5 = lists:map(
-		 fun(#entry{link = Link} = Entry) ->
-			 Entry#entry{link = url:to_string(
-					      url:join(BaseURL, Link))}
 		 end, Entries4),
+    %% Linkify
+    Entries6 = [Entry#entry{link = url:to_string(
+				     url:join(BaseURL, Link))}
+		|| #entry{link = Link} = Entry <- Entries5],
     %% Tidy up
-    Entries6 = lists:map(
+    Entries7 = lists:map(
 		 fun(#entry{description = Description} = Entry)
 		    when is_list(Description) ->
 			 {ok, Description2} = tidy:tidy(Description),
 			 Entry#entry{description = Description2};
-		    (Entry) -> Entry
-		 end, Entries5),
+		    (Entry) ->
+			 Entry#entry{description = ""}
+		 end, Entries6),
     %% TODO: parse tidied up, rewrite links and imgs, remove script tags
     %% and seperate from feed_reader
-    Reply = {Feed2, Entries6},
+    Reply = {Feed2, Entries7},
     {reply, Reply, State};
 
 handle_call(get_results, From, #state{result_waiters = [_ | _] = ResultWaiters} = State) ->
@@ -317,7 +320,10 @@ end_element(#state{stack = [Tag | Stack],
     State#state{record = false,
 		entries = [rss_channel_item(Entry, Tag, Current) | Entries]};
 
-end_element(#state{stack = ["item", "channel", _]} = State) ->
+end_element(#state{stack = Stack} = State)
+  when Stack =:=  ["item", "channel", "rss"];
+       Stack =:= ["item", "rdf"] ->
+    %% TODO: emit current entry
     State#state{record = false,
 		feed_done = true,
 		entry_done = true};
@@ -387,9 +393,11 @@ rss_channel_item(#entry{description = undefined} = Entry, "description", Text) -
     Entry#entry{description = Text};
 rss_channel_item(Entry, "pubDate", Text) ->
     Entry#entry{date = parse_date(Text)};
-rss_channel_item(Entry, "dc:date", Text) ->
+rss_channel_item(Entry, "pubdate", Text) ->
     Entry#entry{date = parse_date(Text)};
-rss_channel_item(Entry, _, _) ->
+rss_channel_item(Entry, "date", Text) ->
+    Entry#entry{date = parse_date(Text)};
+rss_channel_item(Entry, _N, _) ->
     Entry.
 
 
@@ -444,7 +452,9 @@ parse_date(S) ->
 	undefined ->
 	    error_logger:warn_msg("Unrecognized date format: ~p~n", [S]),
 	    R;
-	_ -> R
+	_ ->
+	    %%error_logger:info_msg("Date ~p -> ~p~n", [S, R]),
+	    R
     end.
 
 parse_date(S, Regex, Bindings) ->
