@@ -24,7 +24,8 @@ run(ConfigFile) ->
 				{URL, Pid}
 			end, URLs),
     wait_workers(Workers),
-    templates:run().
+    %%templates:run().
+    ok.
 
 wait_workers([]) ->
     error_logger:info_msg("all workers done~n");

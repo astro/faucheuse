@@ -254,7 +254,7 @@ handle_data(Data, #state{mode = packet,
 handle_data([_ | _] = Data, #state{mode = packet,
 				   current_packet = Packet,
 				   packet_length = Length} = State)
-  when length(Data) =< Length or Length < 0 ->
+  when length(Data) =< Length orelse Length < 0 ->
     handle_data([], State#state{current_packet = Packet ++ Data,
 				packet_length = Length - length(Data)});
 
