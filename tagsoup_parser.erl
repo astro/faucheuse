@@ -4,12 +4,14 @@
 -export([start_link/1, push/2, stop/1]).
 
 
--record(state, {callback, buffer = "", encoding = "utf-8"}).
+-record(tagsoup_parser, {pid, ref}).
+-record(state, {ref, callback, buffer = "", encoding = "utf-8"}).
 
 start_link(CallbackFun) ->
+    Ref = make_ref(),
     Pid = spawn_link(
 	    fun() ->
-		    try init(CallbackFun)
+		    try init(Ref, CallbackFun)
 		    catch
 			exit:normal ->
 			    normal;
@@ -19,21 +21,21 @@ start_link(CallbackFun) ->
 			    exit(Reason)
 		    end
 	    end),
-    {ok, Pid}.
+    {ok, #tagsoup_parser{pid = Pid,
+			 ref = Ref}}.
 
-push(Pid, Chars) ->
-    Pid ! {push, Chars}.
+push(#tagsoup_parser{pid = Pid, ref = Ref}, Chars) ->
+    Pid ! {push, Ref, Chars}.
 
-stop(Pid) ->
-    Ref = make_ref(),
-    Pid ! {stop, self(), Ref},
+stop(#tagsoup_parser{pid = Pid, ref = Ref}) ->
+    Pid ! {stop, Ref, self()},
     receive
-	{stopped, Pid, Ref} ->
+	{stopped, Ref, Pid} ->
 	    ok
     end.
 
-init(CallbackFun) ->
-    State = #state{callback = CallbackFun},
+init(Ref, CallbackFun) ->
+    State = #state{ref = Ref, callback = CallbackFun},
     parse_text(State).
 
 pull(State) ->
@@ -46,13 +48,13 @@ pull(State, NChars) ->
 pull(State, 0, Result) ->
     {State, lists:reverse(Result)};
 
-pull(#state{buffer = ""} = State, N, Result) ->
+pull(#state{ref = Ref, buffer = ""} = State, N, Result) ->
     receive
-	{push, Chars} ->
+	{push, Ref, Chars} ->
 	    pull(State#state{buffer = Chars},
 		 N, Result);
-	{stop, Caller, Ref} ->
-	    Caller ! {stopped, self(), Ref},
+	{stop, Ref, Caller} ->
+	    Caller ! {stopped, Ref, self()},
 	    exit(normal)
     end;
 

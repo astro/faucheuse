@@ -3,6 +3,7 @@
 -export([parse/1]).
 
 
+%% Parse XML and return a tree
 parse(Text) ->
     I = self(),
     Ref = make_ref(),
