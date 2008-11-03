@@ -1,6 +1,6 @@
 -module(util).
 
--export([hex_to_int/1, string_chomp/1,
+-export([hex_to_int/1, string_chomp/1, split/2,
 	 current_timestamp/0, current_timestamp_ms/0]).
 
 
@@ -44,3 +44,13 @@ current_timestamp_ms() ->
     {MS, S, SS} = now(),
     (MS * 1000000 + S) * 1000000 + SS.
     
+
+split(N, List) ->
+    if
+	N > length(List) ->
+	    {List, ""};
+	N < 0 ->
+	    {"", List};
+	true ->
+	    lists:split(N, List)
+    end.

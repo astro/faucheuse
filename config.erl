@@ -3,7 +3,7 @@
 -behaviour(gen_server).
 
 %% API
--export([start_link/1, all_urls/0, collections/0]).
+-export([start_link/1, all_urls/0, collections/0, collection_urls/1]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
@@ -19,6 +19,9 @@ all_urls() ->
 
 collections() ->
     gen_server:call({global, ?SERVER}, collections).
+
+collection_urls(Collection) ->
+    gen_server:call({global, ?SERVER}, {collection_urls, Collection}).
 
 start_link(Filename) ->
     gen_server:start_link({global, ?SERVER}, ?MODULE, [Filename], []).
@@ -48,7 +51,21 @@ handle_call(all_urls, _From, Config) ->
     {reply, Reply, Config};
 
 handle_call(collections, _From, Config) ->
-    {reply, collections(Config), Config}.
+    {reply, collections(Config), Config};
+
+handle_call({collection_urls, Collection}, _From, Config) ->
+    Collections = collections(Config),
+    Collection2 = if
+		      is_list(Collection) ->
+			  list_to_atom(Collection);
+		      is_atom(Collection) ->
+			  Collection
+		  end,
+    Reply = case lists:keysearch(Collection2, 1, Collections) of
+		{value, {_, URLs}} -> URLs;
+		false -> []
+	    end,
+    {reply, Reply, Config}.
 
 handle_cast(_Msg, Config) ->
     {noreply, Config}.
