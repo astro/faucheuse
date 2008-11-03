@@ -71,15 +71,18 @@ xslt_collection_items(Collection, Max) ->
 	lists:foldl(
 	  fun(CollectionURL, Entries) ->
 		  io:format("storage:get_entries_by_feed_url(~s)~n",[CollectionURL]),
-		  storage:get_entries_by_feed_url(CollectionURL) ++ Entries
+		  Entries1 = storage:get_entries_by_feed_url(CollectionURL),
+		  [{CollectionURL, Entry}
+		   || Entry <- Entries1] ++ Entries
 	  end, [], CollectionURLs),
     
-    Entries2 = lists:reverse(lists:sort(fun compare_entries/2, Entries)),
+    Entries2 = lists:reverse(lists:sort(fun({_, E1}, {_, E2}) ->
+						compare_entries(E1, E2)
+					end, Entries)),
     {Entries3, _} = util:split(Max, Entries2),
-    io:format("~p entries for ~p~n",[length(Entries3), Collection]),
     {tree, xml_writer:to_string({"items", [],
-				 [entry_to_xml(Entry)
-				  || Entry <- Entries3]})}.
+				 [entry_to_xml(URL, Entry)
+				  || {URL, Entry} <- Entries3]})}.
 
 xslt_feed_items(URL) ->
     xslt_feed_items(URL, 23).
@@ -91,7 +94,7 @@ xslt_feed_items(URL, Max) ->
     {Entries3, _} = util:split(Max, Entries2),
     io:format("~p entries for ~p~n",[length(Entries3), URL]),
     {tree, xml_writer:to_string({"items", [],
-				 [entry_to_xml(Entry)
+				 [entry_to_xml(URL, Entry)
 				  || Entry <- Entries3]})}.
 
 compare_entries(#entry{date = Date1}, #entry{date = Date2}) ->
@@ -105,8 +108,9 @@ feed_to_xml(URL, Feed) ->
      el_for_val("description", Feed#feed.description)
     }.
 
-entry_to_xml(Entry) ->
+entry_to_xml(URL, Entry) ->
     {"item", [],
+     el_for_val("rss", URL) ++
      el_for_val("id", Entry#entry.id) ++
      el_for_val("date", Entry#entry.date) ++
      el_for_val("title", Entry#entry.title) ++
