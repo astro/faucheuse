@@ -38,6 +38,8 @@ int main(int argc, char **argv )
       ok = tidyOptSetBool( tdoc, TidyBodyOnly, yes );*/
     if ( ok )
       rc = tidySetErrorBuffer( tdoc, &errbuf );      // Capture diagnostics
+    if (rc >= 0 )
+      rc = tidySetCharEncoding( tdoc, "utf8" );
     if ( rc >= 0 )
       rc = tidyParseString( tdoc, input );           // Parse the input
     free(input);
