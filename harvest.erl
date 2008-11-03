@@ -54,26 +54,26 @@ worker(URL) ->
 
     case Response of
 	{response, 200, _, _}  ->
-	    {ok, F} = feed_reader:start_link(URL),
-	    (catch
-		 {ok, _Size} = http_client:recv(
-				 fun(Data, Size1) ->
-					 Size2 = Size1 + length(Data),
-					 if
-					     Size2 > 1024 * 1024 ->
-						 exit(too_big);
-					     true ->
-						 feed_reader:push(F, Data),
-						 Size2
-					 end
-				 end, 0)),
-	    {Feed, Entries} = feed_reader:get_results(F),
-	    EntriesS =
-		lists:foldr(fun(#entry{title = Title, link = Link}, R) ->
-				    [io_lib:format("~20s ~s~n",[Title, Link]) | R]
-			    end, [], Entries),
-	    error_logger:info_msg("*** ~p: ~s~n~s", [URL, Feed#feed.title, EntriesS]),
-	    storage:put_feed(URL, Feed, Entries);
+	    {ok, F} = feed_reader:start_link(URL,
+					     fun(#feed{} = Feed) ->
+						     io:format("Feed from ~s:~n~p~n~n",
+							       [URL, Feed]);
+						(#entry{} = Entry) ->
+						     io:format("Entry from ~s:~n~p~n~n",
+							       [URL, Entry])
+					     end),
+	    {ok, _Size} = http_client:recv(
+			    fun(Data, Size1) ->
+				    Size2 = Size1 + length(Data),
+				    if
+					Size2 > 1024 * 1024 ->
+					    exit(too_big);
+					true ->
+					    feed_reader:push(F, Data),
+					    Size2
+				    end
+			    end, 0),
+	    feed_reader:finish(F);
 	_ ->
 	    ignore
     end.

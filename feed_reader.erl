@@ -3,7 +3,7 @@
 -behaviour(gen_server).
 
 %% API
--export([start_link/1, push/2, get_results/1, parse_date/1]).
+-export([start_link/2, push/2, finish/1]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
@@ -11,16 +11,15 @@
 
 -include("feed.hrl").
 
--record(state, {result_waiters = [],
+-record(state, {callback,
 		parser,
 		url,
 		stack = [],
 		record = false, %% false | text | tree
 		current = "",
 		feed = #feed{},
-		entries = [],
-		feed_done = false,
-		entry_done = false
+		entry,
+		feed_info_done = false
 	       }).
 
 %% TODO: dates, xml:base
@@ -28,101 +27,32 @@
 %%====================================================================
 %% API
 %%====================================================================
-start_link(BaseURL) ->
-    gen_server:start_link(?MODULE, [BaseURL], []).
+start_link(BaseURL, Callback) ->
+    gen_server:start_link(?MODULE, [BaseURL, Callback], []).
 
 push(Pid, Data) ->
     gen_server:cast(Pid, {push, Data}).
 
-get_results(Pid) ->
-    gen_server:call(Pid, get_results).
+finish(Pid) ->
+    gen_server:call(Pid, {finish}).
 
 %%====================================================================
 %% gen_server callbacks
 %%====================================================================
-init([BaseURL]) ->
+init([BaseURL, Callback]) ->
     I = self(),
     {ok, Parser} = tagsoup_parser:start_link(
 		     fun(Msg) ->
 			     gen_server:cast(I, Msg)
 		     end),
-    {ok, #state{parser = Parser,
-		url = BaseURL}}.
+    {ok, #state{callback = Callback,
+		parser = Parser,
+		url = url:parse(BaseURL)}}.
 
-handle_call(get_results, _From, #state{parser = none,
-				       feed_done = false} = State) ->
-    {reply, incomplete, State};
 
-handle_call(get_results, _From, #state{parser = none,
-				       url = BaseURL1,
-				       feed = Feed,
-				       entries = Entries} = State) ->
-    BaseURL = url:parse(BaseURL1),
-    %% Linkify
-    Feed2 = Feed#feed{link = url:to_string(
-			       url:join(BaseURL, Feed#feed.link))},
-    %% Last entry done?
-    Entries2 = case Entries of
-		   [_ | Entries1]
-		   when State#state.entry_done =/= true ->
-		       Entries1;
-		   _ ->
-		       Entries
-	       end,
-    Entries3 = lists:reverse(Entries2),
-    %% Only entries with link
-    Entries4 = [Entry || #entry{link = Link} = Entry <- Entries3,
-			 Link =/= undefined],
-    %% IDify
-    Entries5 = lists:map(
-		 fun(#entry{id = undefined, link = Link} = Entry) ->
-			 Entry#entry{id = Link};
-		    (Entry) ->
-			 Entry
-		 end, Entries4),
-    %% Linkify
-    Entries6 = [Entry#entry{link = url:to_string(
-				     url:join(BaseURL, Link))}
-		|| #entry{link = Link} = Entry <- Entries5],
-    %% Tidy up
-    Entries7 = lists:map(
-		 fun(#entry{description = Description} = Entry)
-		    when is_list(Description) ->
-			 {ok, Description2} = tidy:tidy(Description),
-			 Entry#entry{description = Description2};
-		    (Entry) ->
-			 Entry#entry{description = ""}
-		 end, Entries6),
-    %% TODO: parse tidied up, rewrite links and imgs, remove script tags
-    %% and seperate from feed_reader
-    Reply = {Feed2, Entries7},
-    {reply, Reply, State};
-
-handle_call(get_results, From, #state{result_waiters = [_ | _] = ResultWaiters} = State) ->
-    {noreply, State#state{result_waiters = [From | ResultWaiters]}};
-
-handle_call(get_results, From, #state{parser = Parser,
-				      result_waiters = []} = State) ->
-    I = self(),
-    spawn_link(fun() ->
-		       tagsoup_parser:stop(Parser),
-		       gen_server:cast(I, done)
-	       end),
-    {noreply, State#state{result_waiters = [From]}}.
-
-handle_cast(done, #state{result_waiters = ResultWaiters} = State) ->
-    State2 = State#state{parser = none,
-			 result_waiters = []},
-    State3 = lists:foldl(
-	       fun(Waiter, State1) ->
-		       %% FIXME: this is sick :-)
-		       {reply, Reply, State1New} = handle_call(get_results,
-							       Waiter,
-							       State1),
-		       gen_server:reply(Waiter, Reply),
-		       State1New
-	       end, State2, ResultWaiters),
-    {noreply, State3};
+handle_call({finish}, _From, #state{parser = Parser} = State) ->
+    tagsoup_parser:stop(Parser),
+    {stop, normal, ok, State}.
 
 %% push
 
@@ -184,6 +114,70 @@ code_change(_OldVsn, State, _Extra) ->
 %%% Internal functions
 %%--------------------------------------------------------------------
 
+%% Sanitization functions
+
+fix_feed(Feed, #state{url = BaseURL} = _State) ->
+    %% Linkify
+    Feed2 = Feed#feed{link = url:to_string(
+			       url:join(BaseURL, Feed#feed.link))},
+    Feed2.
+
+%% may return false
+fix_entry(#entry{id = Id,
+		 description = Description,
+		 link = Link} = Entry, #state{url = BaseURL}) ->
+    if
+	%% Only entries with link
+	is_list(Entry#entry.link) ->
+	    %% IDify
+	    Id2 = if
+		      Id == undefined ->
+			  Link;
+		      true ->
+			  Id
+		  end,
+	    %% Linkify
+	    Link2 = url:to_string(url:join(BaseURL, Link)),
+	    %% Tidy up
+	    Description3 = if
+			       is_list(Description) ->
+				   {ok, Description2} = tidy:tidy(Description),
+				   Description2;
+			       true ->
+				   ""
+			   end,
+	    %% TODO: parse tidied up, rewrite links and imgs, remove
+	    %% script tags and seperate from feed_reader
+	    Entry#entry{id = Id2,
+			link = Link2,
+			description = Description3};
+	true ->
+	    false
+    end.
+
+%% #feed{} emitter
+feed_info_complete(#state{feed_info_done = false,
+			  callback = Callback,
+			  feed = Feed} = State) ->
+    Feed2 = fix_feed(Feed, State),
+    Callback(Feed2),
+    State#state{feed_info_done = true};
+
+feed_info_complete(#state{feed_info_done = true} = State) ->
+    State.
+
+entry_complete(#state{callback = Callback,
+		      entry = Entry} = State) ->
+    case fix_entry(Entry, State) of
+	false ->
+	    ignore;
+	Entry2 ->
+	    Callback(Entry2)
+    end,
+    State#state{entry = undefined}.
+
+%% Helpers
+
 mangle_element_name(Name) ->
     Name2 = string:to_lower(Name),
     case string:chr(Name2, $:) of
@@ -200,6 +194,8 @@ get_attr_s(Name, Attributes) ->
 	false ->
 	    ""
     end.
+
+%% stack-aware parser
 
 %% returns a list of stacks for each ended element
 end_element_in_stack(Name, Stack) ->
@@ -229,13 +225,11 @@ start_element(#state{stack = Stack} = State, _)
        tl(Stack) =:= ["item", "rdf"] ->
     State#state{record = text};
 
-start_element(#state{stack = Stack,
-		     entries = Entries} = State, _)
+start_element(#state{stack = Stack} = State, _)
   when Stack =:=  ["item", "channel", "rss"];
        Stack =:= ["item", "rdf"] ->
-    State#state{record = false,
-		feed_done = true,
-		entry_done = false, entries = [#entry{} | Entries]};
+    feed_info_complete(State#state{record = false,
+				   entry = #entry{}});
 
 start_element(#state{stack = [_, "channel", _]} = State, _) ->
     State#state{record = text};
@@ -258,7 +252,7 @@ start_element(#state{stack = ["link", "feed"],
 		feed = Feed#feed{link = NewLink}};
 
 start_element(#state{stack = ["link", "entry", "feed"],
-		     entries = [Entry | Entries]} = State, Attr) ->
+		     entry = Entry} = State, Attr) ->
     Href = get_attr_s("href", Attr),
     Rel = get_attr_s("rel", Attr),
     NewLink = case {Entry#entry.link, Rel} of
@@ -270,17 +264,14 @@ start_element(#state{stack = ["link", "entry", "feed"],
 		  {OldLink, _} -> OldLink
 	      end,
     State#state{record = false,
-		entries = [Entry#entry{link = NewLink} | Entries]};
+		entry = Entry#entry{link = NewLink}};
 
 start_element(#state{stack = [_, "entry", "feed"]} = State, Attrs) ->
     State#state{record = record_by_atom_type(get_attr_s("type", Attrs))};
 
-start_element(#state{stack = ["entry", "feed"],
-		     entries = Entries} = State, _) ->
-    State#state{record = false,
-		feed_done = true,
-		entry_done = false,
-		entries = [#entry{} | Entries]};
+start_element(#state{stack = ["entry", "feed"]} = State, _) ->
+    feed_info_complete(State#state{record = false,
+				   entry = #entry{}});
 
 start_element(#state{stack = [_, "feed"]} = State, Attrs) ->
     State#state{record = record_by_atom_type(get_attr_s("type", Attrs))};
@@ -306,6 +297,11 @@ start_element(State, _) ->
 
 %% RSS
 
+end_element(#state{stack = Stack} = State)
+  when Stack =:=  ["item", "channel", "rss"];
+       Stack =:= ["item", "rdf"] ->
+    entry_complete(State#state{record = false});
+
 end_element(#state{stack = [Tag, "channel", _],
 		   current = Current,
 		   feed = Feed} = State) ->
@@ -314,32 +310,22 @@ end_element(#state{stack = [Tag, "channel", _],
 
 end_element(#state{stack = [Tag | Stack],
 		   current = Current,
-		   entries = [Entry | Entries]} = State)
+		   entry = Entry} = State)
   when Stack =:= ["item", "channel", "rss"];
        Stack =:= ["item", "rdf"] ->
     State#state{record = false,
-		entries = [rss_channel_item(Entry, Tag, Current) | Entries]};
-
-end_element(#state{stack = Stack} = State)
-  when Stack =:=  ["item", "channel", "rss"];
-       Stack =:= ["item", "rdf"] ->
-    %% TODO: emit current entry
-    State#state{record = false,
-		feed_done = true,
-		entry_done = true};
+		entry = rss_channel_item(Entry, Tag, Current)};
 
 end_element(#state{stack = [_, "channel", _]} = State) ->
     State#state{record = false};
 
 end_element(#state{stack = ["channel", _]} = State) ->
-    State#state{record = false,
-		feed_done = true};
+    feed_info_complete(State#state{record = false});
 
 %% ATOM
 
 end_element(#state{stack = ["entry", "feed"]} = State) ->
-    State#state{record = false,
-		entry_done = true};
+    entry_complete(State#state{record = false});
 
 end_element(#state{stack = [Tag, "feed"],
 		   current = Current,
@@ -349,9 +335,9 @@ end_element(#state{stack = [Tag, "feed"],
 
 end_element(#state{stack = [Tag, "entry", "feed"],
 		   current = Current,
-		   entries = [Entry | Entries]} = State) ->
+		   entry = Entry} = State) ->
     State#state{record = false,
-		entries = [atom_entry(Entry, Tag, Current) | Entries]};
+		entry = atom_entry(Entry, Tag, Current)};
 
 
 %% Fall-through
