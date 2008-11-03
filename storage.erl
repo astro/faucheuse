@@ -10,9 +10,9 @@
 -record(entry_storage, {url_id, entry}).
 
 init() ->
-    mnesia:create_table(feed_storage, [%%{disc_copies, [node()]},
+    mnesia:create_table(feed_storage, [{disc_copies, [node()]},
 				       {attributes, record_info(fields, feed_storage)}]),
-    mnesia:create_table(entry_storage, [%%{disc_copies, [node()]},
+    mnesia:create_table(entry_storage, [{disc_copies, [node()]},
 					{attributes, record_info(fields, entry_storage)}]),
     ok.
 

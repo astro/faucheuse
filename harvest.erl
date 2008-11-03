@@ -13,9 +13,7 @@ run() ->
 
 run(ConfigFile) ->
     application:start(sasl),
-    mnesia:start(),
     harvester_sup:start_link(),
-    storage:init(),
     config:start_link(ConfigFile),
     
     URLs = config:all_urls(),
