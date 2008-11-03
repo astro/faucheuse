@@ -1,6 +1,6 @@
 -module(storage).
 
--export([init/0, put_feed/3,
+-export([init/0, put_feed/2, put_entry/2,
 	 atomic/1, get_feed_by_url_t/1, get_entries_by_feed_url_t/1]).
 
 -include("feed.hrl").
@@ -16,17 +16,20 @@ init() ->
 					{attributes, record_info(fields, entry_storage)}]),
     ok.
 
-put_feed(URL, Feed, Entries) ->
+put_feed(URL, Feed) ->
     F = fun() ->
 		mnesia:write(#feed_storage{url = URL,
-					   feed = Feed}),
-		lists:foreach(
-		  fun(#entry{id = Id} = Entry) ->
-			  mnesia:write(#entry_storage{url_id = {URL, Id},
-						      entry = Entry})
-		  end, Entries)
+					   feed = Feed})
 	end,
     {atomic, _} = mnesia:transaction(F).
+
+put_entry(URL, #entry{id = Id} = Entry) ->
+    F = fun() ->
+		mnesia:write(#entry_storage{url_id = {URL, Id},
+					    entry = Entry})
+	end,
+    {atomic, _} = mnesia:transaction(F).
+    
 
 atomic(Fun) ->
     {atomic, Res} = mnesia:transaction(Fun),

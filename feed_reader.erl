@@ -429,6 +429,7 @@ parse_date(S) ->
 		  parse_date(S, RE, Bindings);
 	     (_, R) -> R
 	  end, undefined, [{"(\\d+)-(\\d+)-(\\d+)T(\\d+):(\\d+):(\\d+)", [y,mo,d,h,m,s]},
+			   {"(\\d+)-(\\d+)-(\\d+)T(\\d+):(\\d+)", [y,mo,d,h,m]},
 			   %% Wed, 20 Apr 2005 19:38:15 +0200
 			   %% Fri, 22 Apr 2005 10:31:12 GMT
 			   {".+?, +(\\d+) (.+?) (\\d+) (\\d+):(\\d+):(\\d+)", [d,month,y,h,m,s]},
@@ -436,7 +437,7 @@ parse_date(S) ->
 			   {"(\\d+) (.+?) (\\d{4}) (\\d+):(\\d+):(\\d+)", [d,month,y,h,m,s]}]),
     case R of
 	undefined ->
-	    error_logger:warn_msg("Unrecognized date format: ~p~n", [S]),
+	    error_logger:warning_report("Unrecognized date format: ~p~n", [S]),
 	    R;
 	_ ->
 	    %%error_logger:info_msg("Date ~p -> ~p~n", [S, R]),

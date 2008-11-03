@@ -56,11 +56,9 @@ worker(URL) ->
 	{response, 200, _, _}  ->
 	    {ok, F} = feed_reader:start_link(URL,
 					     fun(#feed{} = Feed) ->
-						     io:format("Feed from ~s:~n~p~n~n",
-							       [URL, Feed]);
+						     storage:put_feed(URL, Feed);
 						(#entry{} = Entry) ->
-						     io:format("Entry from ~s:~n~p~n~n",
-							       [URL, Entry])
+						     storage:put_entry(URL, Entry)
 					     end),
 	    {ok, _Size} = http_client:recv(
 			    fun(Data, Size1) ->
