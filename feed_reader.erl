@@ -116,19 +116,20 @@ code_change(_OldVsn, State, _Extra) ->
 
 %% Sanitization functions
 
-fix_feed(Feed, #state{url = BaseURL} = State) ->
+fix_feed(#feed{description = Description} = Feed,
+	 #state{url = BaseURL} = State) ->
     %% Linkify
     Link = url:to_string(
 	     url:join(BaseURL, Feed#feed.link)),
     %% Sanitization
-    Description =
-	case Feed#feed.description of
-	    undefined -> "";
-	    Description1 ->
-		fix_html(Description1, State)
-	end,
+    Description2 = if
+		      is_list(Description) ->
+			   make_html(Description, State);
+		       true ->
+			   []
+		   end,
     Feed#feed{link = Link,
-	      description = Description}.
+	      description = Description2}.
 
 %% may return false
 fix_entry(#entry{id = Id,
@@ -149,10 +150,9 @@ fix_entry(#entry{id = Id,
 	    %% Tidy up
 	    Description3 = if
 			       is_list(Description) ->
-				   {ok, Description2} = tidy:tidy(Description),
-				   fix_html(Description2, State);
+				   make_html(Description, State);
 			       true ->
-				   ""
+				   []
 			   end,
 	    %% TODO: parse tidied up, rewrite links and imgs, remove
 	    %% script tags and seperate from feed_reader
@@ -164,15 +164,16 @@ fix_entry(#entry{id = Id,
     end.
 
 
-fix_html(String, State) ->
-    Tree = tagsoup_reader:parse(String),
-    Tree2 = fix_html_children(Tree, State),
-    xml_writer:to_string(Tree2).
+make_html(String, State) ->
+    {ok, String2} = tidy:tidy(String),
+    Els = tagsoup_reader:parse(String2),
+    Els2 = fix_html_children(Els, State),
+    Els2.
 
 fix_html_el({Name, Attrs, Children}, State) ->
     case string:to_lower(Name) of
-	"script" -> "";
-	"style" -> "";
+	"script" -> {text, ""};
+	"style" -> {text, ""};
 	"a" ->
 	    {Name, absolutize_href_attr("href", Attrs, State#state.url),
 	     fix_html_children(Children, State)};
@@ -422,7 +423,8 @@ rss_channel_item(Entry, "title", Text) ->
     Entry#entry{title = Text};
 rss_channel_item(Entry, "link", Text) ->
     Entry#entry{link = Text};
-rss_channel_item(Entry, "content:encoded", Text) ->
+%% <content:encoded/>
+rss_channel_item(Entry, "encoded", Text) ->
     Entry#entry{description = Text};
 rss_channel_item(#entry{description = undefined} = Entry, "encoded", Text) ->
     Entry#entry{description = Text};
