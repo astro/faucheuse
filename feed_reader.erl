@@ -116,16 +116,25 @@ code_change(_OldVsn, State, _Extra) ->
 
 %% Sanitization functions
 
-fix_feed(Feed, #state{url = BaseURL} = _State) ->
+fix_feed(#feed{description = Description} = Feed,
+	 #state{url = BaseURL} = State) ->
     %% Linkify
-    Feed2 = Feed#feed{link = url:to_string(
-			       url:join(BaseURL, Feed#feed.link))},
-    Feed2.
+    Link = url:to_string(
+	     url:join(BaseURL, Feed#feed.link)),
+    %% Sanitization
+    Description2 = if
+		      is_list(Description) ->
+			   make_html(Description, State);
+		       true ->
+			   []
+		   end,
+    Feed#feed{link = Link,
+	      description = Description2}.
 
 %% may return false
 fix_entry(#entry{id = Id,
 		 description = Description,
-		 link = Link} = Entry, #state{url = BaseURL}) ->
+		 link = Link} = Entry, #state{url = BaseURL} = State) ->
     if
 	%% Only entries with link
 	is_list(Entry#entry.link) ->
@@ -141,10 +150,9 @@ fix_entry(#entry{id = Id,
 	    %% Tidy up
 	    Description3 = if
 			       is_list(Description) ->
-				   {ok, Description2} = tidy:tidy(Description),
-				   Description2;
+				   make_html(Description, State);
 			       true ->
-				   ""
+				   []
 			   end,
 	    %% TODO: parse tidied up, rewrite links and imgs, remove
 	    %% script tags and seperate from feed_reader
@@ -154,6 +162,50 @@ fix_entry(#entry{id = Id,
 	true ->
 	    false
     end.
+
+
+make_html(String, State) ->
+    {ok, String2} = tidy:tidy(String),
+    Els = tagsoup_reader:parse(String2),
+    Els2 = fix_html_children(Els, State),
+    Els2.
+
+fix_html_el({Name, Attrs, Children}, State) ->
+    case string:to_lower(Name) of
+	"script" -> {text, ""};
+	"style" -> {text, ""};
+	"a" ->
+	    {Name, absolutize_href_attr("href", Attrs, State#state.url),
+	     fix_html_children(Children, State)};
+	"img" ->
+	    {Name, absolutize_href_attr("src", Attrs, State#state.url),
+	     fix_html_children(Children, State)};
+	_ ->
+	    {Name, Attrs,
+	     fix_html_children(Children, State)}
+    end.
+
+fix_html_children(Children, State) ->
+    [case Child of
+	 {_, _, _} -> fix_html_el(Child, State);
+	 {text, _} -> Child
+     end
+     || Child <- Children].
+
+absolutize_href_attr(_, [], _) ->
+    [];
+absolutize_href_attr(AttrName, [{AttrName, Href} | Attrs], BaseURL) ->
+    Href2 = url:to_string(url:join(BaseURL, Href)),
+    if
+	Href =/= Href2 ->
+	    error_logger:info_msg("Absolutized: ~p -> ~p~n", [Href, Href2]);
+	true ->
+	    ok
+    end,
+    [{AttrName, Href2} | Attrs];
+absolutize_href_attr(AttrName, [Attr | Attrs], BaseURL) ->
+    [Attr | absolutize_href_attr(AttrName, Attrs, BaseURL)].
+    
 
 %% #feed{} emitter
 feed_info_complete(#state{feed_info_done = false,
@@ -371,7 +423,8 @@ rss_channel_item(Entry, "title", Text) ->
     Entry#entry{title = Text};
 rss_channel_item(Entry, "link", Text) ->
     Entry#entry{link = Text};
-rss_channel_item(Entry, "content:encoded", Text) ->
+%% <content:encoded/>
+rss_channel_item(Entry, "encoded", Text) ->
     Entry#entry{description = Text};
 rss_channel_item(#entry{description = undefined} = Entry, "encoded", Text) ->
     Entry#entry{description = Text};

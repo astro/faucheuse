@@ -20,8 +20,10 @@ start_link() ->
 %% Supervisor callbacks
 %%====================================================================
 init([]) ->
+    mnesia:create_schema([node()]),
     mnesia:start(),
     entities:init(),
+    storage:init(),
     {ok,{{one_for_one,2,1}, [
 			     {iconv, {iconv, start_link, []},
 			      permanent, 1000, worker, [iconv]},

@@ -27,7 +27,6 @@ run(TemplateDir, OutputDir) ->
     erlxslt:register_function(P, ?NS_HARVESTER,
 			      "feed-items",
 			      fun xslt_feed_items/2),
-io:format("r: ~s~n", [xml_writer:to_string(generate_root())]),
     erlxslt:set_xml(P, ".", xml_writer:to_string(generate_root())),
     
     lists:foreach(
@@ -48,12 +47,10 @@ io:format("r: ~s~n", [xml_writer:to_string(generate_root())]),
 generate_root() ->
     {"collections", [],
      [{"collection", [{"name", atom_to_list(Name)}],
-       [case storage:get_feed_by_url(URL) of
-	    #feed{} = Feed ->
-		feed_to_xml(URL, Feed);
-	    _ -> []
-	end
-	|| URL <- URLs]}
+       [feed_to_xml(URL, Feed)
+	|| {URL, Feed} <- [{URL, storage:get_feed_by_url(URL)}
+			   || URL <- URLs],
+	   element(1, Feed) =:= feed]}
       || {Name, URLs} <- config:collections()]}.
 
 xslt_collection_items(Collection) ->
@@ -71,15 +68,18 @@ xslt_collection_items(Collection, Max) ->
 	lists:foldl(
 	  fun(CollectionURL, Entries) ->
 		  io:format("storage:get_entries_by_feed_url(~s)~n",[CollectionURL]),
-		  storage:get_entries_by_feed_url(CollectionURL) ++ Entries
+		  Entries1 = storage:get_entries_by_feed_url(CollectionURL),
+		  [{CollectionURL, Entry}
+		   || Entry <- Entries1] ++ Entries
 	  end, [], CollectionURLs),
     
-    Entries2 = lists:reverse(lists:sort(fun compare_entries/2, Entries)),
+    Entries2 = lists:reverse(lists:sort(fun({_, E1}, {_, E2}) ->
+						compare_entries(E1, E2)
+					end, Entries)),
     {Entries3, _} = util:split(Max, Entries2),
-    io:format("~p entries for ~p~n",[length(Entries3), Collection]),
     {tree, xml_writer:to_string({"items", [],
-				 [entry_to_xml(Entry)
-				  || Entry <- Entries3]})}.
+				 [entry_to_xml(URL, Entry)
+				  || {URL, Entry} <- Entries3]})}.
 
 xslt_feed_items(URL) ->
     xslt_feed_items(URL, 23).
@@ -89,9 +89,8 @@ xslt_feed_items(URL, Max) ->
     Entries = storage:get_entries_by_feed_url(URL),
     Entries2 = lists:reverse(lists:sort(fun compare_entries/2, Entries)),
     {Entries3, _} = util:split(Max, Entries2),
-    io:format("~p entries for ~p~n",[length(Entries3), URL]),
     {tree, xml_writer:to_string({"items", [],
-				 [entry_to_xml(Entry)
+				 [entry_to_xml(URL, Entry)
 				  || Entry <- Entries3]})}.
 
 compare_entries(#entry{date = Date1}, #entry{date = Date2}) ->
@@ -102,25 +101,26 @@ feed_to_xml(URL, Feed) ->
      el_for_val("rss", URL) ++
      el_for_val("link", Feed#feed.link) ++
      el_for_val("title", Feed#feed.title) ++
-     el_for_val("description", Feed#feed.description)
+     [{"description", [], Feed#feed.description}]
     }.
 
-entry_to_xml(Entry) ->
+entry_to_xml(URL, Entry) ->
     {"item", [],
+     el_for_val("rss", URL) ++
      el_for_val("id", Entry#entry.id) ++
      el_for_val("date", Entry#entry.date) ++
      el_for_val("title", Entry#entry.title) ++
      el_for_val("link", Entry#entry.link) ++
-     el_for_val("description", Entry#entry.description)
+     [{"description", [], Entry#entry.description}]
     }.
 
 el_for_val(_, undefined) ->
     [];
 el_for_val(ElName, Value) when is_list(Value) ->
-    [{ElName, [], [Value]}];
+    [{ElName, [], [{text, Value}]}];
 el_for_val(ElName, {{Y,Mo,D},{H,M,S}}) ->
     [{ElName, [],
-      [lists:flatten(io_lib:format("~4B-~2..0B-~2..0BT~2..0B:~2..0B:~2..0B",
-				   [Y,Mo,D,H,M,S]))]}];
+      [{text, lists:flatten(io_lib:format("~4B-~2..0B-~2..0BT~2..0B:~2..0B:~2..0B",
+					  [Y,Mo,D,H,M,S]))}]}];
 el_for_val(ElName, Value) ->
-    [{ElName, [], [io_lib:format("~p", [Value])]}].
+    [{ElName, [], [{text, io_lib:format("~p", [Value])}]}].

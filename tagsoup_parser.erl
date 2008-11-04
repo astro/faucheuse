@@ -191,9 +191,9 @@ parse_attribute_name(State, Name) ->
 parse_attribute_value(State, Name) ->
     {NewState, C} = pull(State),
     case C of
-	$' ->
+	$\' ->
 	    parse_attribute_value(NewState, Name, "'", "");
-	$" ->
+	$\" ->
 	    parse_attribute_value(NewState, Name, "\"", "");
 	_ ->
 	    parse_attribute_value(NewState, Name, none, [C])
@@ -202,6 +202,10 @@ parse_attribute_value(State, Name) ->
 parse_attribute_value(State, Name, none, Value) ->
     {NewState, C} = pull(State),
     case C of
+	$\' ->
+	    parse_attribute_value(NewState, Name, "'", "");
+	$\" ->
+	    parse_attribute_value(NewState, Name, "\"", "");
 	$  ->
 	    {NewState, Name, lists:reverse(Value)};
 	$\t ->

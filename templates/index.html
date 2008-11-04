@@ -58,8 +58,6 @@
               improved by Neingeist and Josef.
             </p>
           </div>
-          <xsl:value-of
-          select="count(hv:collection-items('blogs')/item)"/> items
           <div class="ticker">
             <h2>To be fed</h2>
             <p>
@@ -145,10 +143,10 @@
 	      </div>
               <h3 class="entry-title"><a href="{link}" rel="bookmark"><xsl:value-of select="title"/></a></h3>
               <div class="entrydesc entry-content">
-		<xsl:value-of select="description" disable-output-escaping="yes"/>
+		<xsl:copy-of select="description"/>
               </div>
 	      
-              <xsl:variable name="enclosures" select="hv:item-enclosures(string($rss), string(link))"/>
+              <!--xsl:variable name="enclosures" select="hv:item-enclosures(string($rss), string(link))"/>
               <xsl:if test="count($enclosures/enclosure) &gt; 0">
 		<ul>
                   <xsl:for-each select="$enclosures/enclosure">
@@ -176,7 +174,7 @@
                     </li>
                   </xsl:for-each>
 		</ul>
-              </xsl:if>
+              </xsl:if-->
 	      
               <div class="entryfoot"><a href="{link}" title="{link}">mehr...</a></div>
             </div>
