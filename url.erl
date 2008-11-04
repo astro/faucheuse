@@ -4,25 +4,31 @@
 -include("url.hrl").
 
 parse(S) ->
-    case string:str(S, "://") of
-	0 ->
-	    parse_path(#url{type = relative}, S);
-	_->
+    case string:str(S, ":") of
+	Colon when Colon > 0 andalso Colon < 16 ->
 	    URL = parse_scheme(#url{type = absolute}, S),
 	    case URL#url.path of
+		[] -> URL;
 		[$/ | _] -> URL;
 		Path -> URL#url{path = [$/ | Path]}
-	    end
+	    end;
+	_ ->
+	    parse_path(#url{type = relative}, S)
     end.
 
 parse_scheme(URL, S) ->
     parse_scheme(URL, "", S).
 
-parse_scheme(URL, Scheme, [$:, $/, $/ | S]) ->
-    parse_host(URL#url{scheme = list_to_atom(lists:reverse(Scheme))}, S);
+parse_scheme(URL, Scheme, [$: | S]) ->
+    parse_scheme_slashes(URL#url{scheme = list_to_atom(lists:reverse(Scheme))}, ":", S);
 
 parse_scheme(URL, Scheme, [C | S]) ->
     parse_scheme(URL, [C | Scheme], S).
+
+parse_scheme_slashes(URL, Sep, [$/ | S]) ->
+    parse_scheme_slashes(URL, [$/ | Sep], S);
+parse_scheme_slashes(URL, Sep, S) ->
+    parse_host(URL#url{scheme_sep = lists:reverse(Sep)}, S).
 
 
 parse_host(URL, S) ->
@@ -43,7 +49,7 @@ parse_host(URL, Host, [$/ | S]) ->
 parse_host(URL, Host, [$? | S]) ->
     parse_q(URL#url{host = lists:reverse(Host),
 		       port = scheme_default_port(URL#url.scheme),
-		       path = "/"}, S);
+		       path = ""}, S);
 
 parse_host(URL, Host, [C | S]) ->
     parse_host(URL, [C | Host], S).
@@ -51,7 +57,8 @@ parse_host(URL, Host, [C | S]) ->
 
 scheme_default_port(ftp) -> 21;
 scheme_default_port(http) -> 80;
-scheme_default_port(https) -> 443.
+scheme_default_port(https) -> 443;
+scheme_default_port(_) -> unknown.
      
 
 parse_port(URL, S) ->
@@ -69,7 +76,7 @@ parse_port(URL, Port, [$/ | S]) ->
 parse_port(URL, Port, [$? | S]) ->
     {PortI, ""} = string:to_integer(lists:reverse(Port)),
     parse_q(URL#url{port = PortI,
-		    path = "/"}, S);
+		    path = ""}, S);
 
 parse_port(URL, Port, [C | S]) ->
     parse_port(URL, [C | Port], S).
@@ -105,11 +112,12 @@ parse_fragment(URL, S) ->
     URL#url{fragment = S}.
 
 to_string(#url{scheme = Scheme,
+	       scheme_sep = SchemeSep,
 	       host = Host,
 	       port = Port,
 	       fragment = Fragment} = URL) ->
     DefaultPort = case (catch scheme_default_port(Scheme)) of
-		      {'EXIT', _} -> none;
+		      {'EXIT', _} -> unknown;
 		      P -> P
 		  end,
     if
@@ -118,7 +126,7 @@ to_string(#url{scheme = Scheme,
 	is_list(Scheme) ->
 	    Scheme
     end ++
-	"://" ++
+	SchemeSep ++
 	Host ++
 	if
 	    Port == DefaultPort ->
@@ -137,6 +145,7 @@ to_string(#url{scheme = Scheme,
 get_path_query(#url{path = Path,
 		    q = Q}) ->
 	case Path of
+	    [] -> "";
 	    [$/ | _] -> Path;
 	    _ -> [$/ | Path]
 	end ++
@@ -220,9 +229,9 @@ test_url(S, Url) ->
 
 test() ->
     %% Empty path
-    {url, absolute, http, "spaceboyz.net", 80, "/", "", ""} = parse("http://spaceboyz.net"),
-    {url, absolute, http, "example", 80, "/", "test", ""} = parse("http://example?test"),
-    {url, absolute, https, "example", 8443, "/", "test", ""} = parse("https://example:8443?test"),
+    {url, absolute, http, "spaceboyz.net", 80, "", "", ""} = parse("http://spaceboyz.net"),
+    {url, absolute, http, "example", 80, "", "test", ""} = parse("http://example?test"),
+    {url, absolute, https, "example", 8443, "", "test", ""} = parse("https://example:8443?test"),
     %% Bidirectional
     test_url("http://spaceboyz.net/", {url, absolute, http, "spaceboyz.net", 80, "/", "", ""}),
     test_url("https://nsa.gov:8443/login?secure#form", {url, absolute, https, "nsa.gov", 8443, "/login", "secure", "form"}),
