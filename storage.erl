@@ -5,9 +5,8 @@
 
 -include("feed.hrl").
 
--record(feed_storage, {url,
-		       feed}).
--record(entry_storage, {url_id, entry}).
+-record(feed_storage, {url, feed, last_seen=0}).
+-record(entry_storage, {url_id, entry, last_seen=0}).
 
 init() ->
     mnesia:create_table(feed_storage, [{disc_copies, [node()]},
@@ -19,14 +18,16 @@ init() ->
 put_feed(URL, Feed) ->
     F = fun() ->
 		mnesia:write(#feed_storage{url = URL,
-					   feed = Feed})
+					   feed = Feed,
+					   last_seen = util:current_timestamp()})
 	end,
     {atomic, _} = mnesia:transaction(F).
 
 put_entry(URL, #entry{id = Id} = Entry) ->
     F = fun() ->
 		mnesia:write(#entry_storage{url_id = {URL, Id},
-					    entry = Entry})
+					    entry = Entry,
+					    last_seen = util:current_timestamp()})
 	end,
     {atomic, _} = mnesia:transaction(F).
     
