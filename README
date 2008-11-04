@@ -1,0 +1,5 @@
+short braindump on how to run it:
+
+code:add_path(".../erlxslt").
+harvest:run().
+templates:run().
