@@ -6,7 +6,7 @@
 -behaviour(gen_server).
 
 %% API
--export([start_link/0, subscribe/1, unsubscribe/0, notify/2]).
+-export([start_link/0, subscribe/1, unsubscribe/0, notify/2, filter_active_urls/1]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
@@ -32,6 +32,9 @@ unsubscribe() ->
 notify(URL, Info) ->
     gen_server:cast(?SERVER, {notify, URL, Info}).
 
+filter_active_urls(URLs) ->
+    gen_server:call(?SERVER, {filter_active_urls, URLs}).
+
 %%====================================================================
 %% gen_server callbacks
 %%====================================================================
@@ -43,6 +46,7 @@ init([]) ->
     {ok, #state{}}.
 
 handle_call({subscribe, URL, Subscriber}, _From, State) ->
+    updater:add_update(URL),
     {atomic, _} =
 	mnesia:transaction(
 	  fun() ->
@@ -55,6 +59,7 @@ handle_call({unsubscribe, Subscriber}, _From, State) ->
     {atomic, Unsubscribed} =
 	mnesia:transaction(
 	  fun() ->
+		  mnesia:write_lock_table(subscription),
 		  Subscriptions =
 		      mnesia:select(subscription,
 				    [{#subscription{subscriber = Subscriber,
@@ -65,7 +70,21 @@ handle_call({unsubscribe, Subscriber}, _From, State) ->
 			    Unsubscribed + 1
 		    end, 0, Subscriptions)
 	  end),
-    {reply, Unsubscribed, State}.
+    {reply, Unsubscribed, State};
+
+handle_call({filter_active_urls, URLs}, _From, State) ->
+    {atomic, URLs2} =
+	mnesia:transaction(
+	  fun() ->
+		  lists:foldl(
+		    fun(URL, {Active, Inactive}) ->
+			    case mnesia:read({subscription, URL}) of
+				[] -> {Active, [URL | Inactive]};
+				_ -> {[URL | Active], Inactive}
+			    end
+		    end, {[], []}, URLs)
+	  end),
+    {reply, URLs2, State}.
 
 handle_cast({notify, URL, Info}, State) ->
     {atomic, _} =
