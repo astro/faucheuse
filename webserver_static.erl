@@ -31,15 +31,17 @@ handle_call(#req{uri = Uri}, _From, State)
 handle_call(#req{uri = Path}, _From, State) ->
     case string:str(Path, "/.") of
 	0 ->
+	    io:format("reading ~p~n",[State#state.files_path ++ "/" ++ Path]),
 	    case file:read_file(State#state.files_path ++ "/" ++ Path) of
 		{ok, Content} ->
-		    {reply, {200, [{"Content-type", "text/plain"}],
-			     Content}};
+		    ContentType = content_type_for_path(Path),
+		    {reply, {respond, 200, [{"Content-type", ContentType}],
+			     Content}, State};
 		{error, Reason} ->
-		    {reply, {500, [], atom_to_list(Reason)}, State}
+		    {reply, {respond, 500, [], atom_to_list(Reason)}, State}
 	    end;
 	_ ->
-	    {reply, {400, [], "Bad request"}, State}
+	    {reply, {respond, 400, [], "Bad request"}, State}
     end.
 
 handle_cast(_Msg, State) ->
@@ -57,3 +59,9 @@ code_change(_OldVsn, State, _Extra) ->
 %%--------------------------------------------------------------------
 %%% Internal functions
 %%--------------------------------------------------------------------
+
+content_type_for_path(Path) ->
+    content_type_for_path_(lists:reverse(Path)).
+
+content_type_for_path_("ssc." ++ _) -> "text/css";
+content_type_for_path_(_) -> "text/plain".

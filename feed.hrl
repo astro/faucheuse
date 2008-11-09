@@ -1,8 +1,8 @@
 -record(feed, {title,
 	       link,
-	       description}).
+	       description=""}).
 -record(entry, {id,
 		date,
 		title,
 		link,
-		description}).
+		description=""}).

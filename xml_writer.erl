@@ -31,4 +31,13 @@ to_string1({Name, Attrs, Children}) ->
      end];
 
 to_string1({text, S}) when is_list(S) ->
-    entities:escape(S).
+    entities:escape(S);
+
+to_string1(L) when is_list(L) ->
+    [S || S <- L];
+
+to_string1(I) when is_integer(I) ->
+    I;
+
+to_string1(_) ->
+    "".

@@ -23,6 +23,13 @@ start_link({xslt, _Path, TemplatesPath, Collections}) ->
 %%====================================================================
 init([TemplatesPath, Collections]) ->
     {ok, Processor} = templates:start_link(Collections),
+    lists:foreach(
+      fun({_Collection, URLs}) ->
+	      lists:foreach(
+		fun(URL) ->
+			notify:subscribe(URL)
+		end, URLs)
+      end, Collections),
     {ok, #state{templates_path = TemplatesPath,
 		collections = Collections,
 		processor = Processor}}.
@@ -33,8 +40,13 @@ handle_call(#req{uri = Uri}, _From,
     Uri2 = [C
 	    || C <- Uri,
 	       C =/= $/],
-    {ok, Type, Result} = templates:process(Processor, TemplatesPath ++ "/" ++ Uri2),
-    {reply, {respond, 200, [{"Content-type", Type}], Result}, State}.
+    case (catch templates:process(Processor,
+				  TemplatesPath ++ "/" ++ Uri2)) of
+	{ok, Type, Result} ->
+	    {reply, {respond, 200, [{"Content-type", Type}], Result}, State};
+	{'EXIT', {{badmatch,{error,enoent}},_}} ->
+	    {reply, {respond, 404, [], ""}, State}
+    end.
 
 handle_cast(_Msg, State) ->
     {noreply, State}.
@@ -43,6 +55,7 @@ handle_info(_Info, State) ->
     {noreply, State}.
 
 terminate(_Reason, _State) ->
+    notify:unsubscribe(),
     ok.
 
 code_change(_OldVsn, State, _Extra) ->

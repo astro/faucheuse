@@ -23,13 +23,10 @@ iserve_request(C, #req{uri = {abs_path, Path}} = Req) ->
 	  fun({Id,Child,_Type,_Modules}, false) ->
 		  try worker_path(Id) of
 		      ChildPath ->
-			  io:format("paths: ~p ~p~n",[ChildPath,Path]),
 			  case starts_with(Path, ChildPath) of
 			      false ->
-				  io:format("paths1: ~p ~p~n",[ChildPath,Path]),
 				  false;
 			      Rest ->
-				  io:format("paths2: ~p ~p ~p~n",[ChildPath,Path, Rest]),
 				  worker_request(Child, Rest, Req)
 			  end
 		  catch _:_ ->

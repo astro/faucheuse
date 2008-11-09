@@ -7,6 +7,7 @@
 
 -define(NS_HARVESTER, "http://astroblog.spaceboyz.net/harvester/xslt-functions").
 
+-define(UTF8(S), "<?xml version=\"1.0\" encoding=\"UTF-8\"?>" ++ S).
 
 start_link(Collections) ->
     {ok, P} = erlxslt:start_link("../erlang/erlxslt/erlxslt"),
@@ -41,7 +42,7 @@ start_link(Collections) ->
 			      "feed-items",
 			      fun xslt_feed_items/2),
     erlxslt:set_xml(P, "collections.xml",
-		    xml_writer:to_string(generate_root(Collections))),
+		    ?UTF8(xml_writer:to_string(generate_root(Collections)))),
     {ok, P}.
 
 process(P, XsltFile) ->
@@ -72,7 +73,7 @@ xslt_collection_items(CollectionURLs, Max) ->
     Entries =
 	lists:foldl(
 	  fun(CollectionURL, Entries) ->
-		  io:format("storage:get_entries_by_feed_url(~s)~n",[CollectionURL]),
+		  %%io:format("storage:get_entries_by_feed_url(~s)~n",[CollectionURL]),
 		  Entries1 = storage:get_entries_by_feed_url(CollectionURL),
 		  [{CollectionURL, Entry}
 		   || Entry <- Entries1] ++ Entries
@@ -82,21 +83,21 @@ xslt_collection_items(CollectionURLs, Max) ->
 						compare_entries(E1, E2)
 					end, Entries)),
     {Entries3, _} = util:split(Max, Entries2),
-    {tree, xml_writer:to_string({"items", [],
-				 [entry_to_xml(URL, Entry)
-				  || {URL, Entry} <- Entries3]})}.
+    {tree, ?UTF8(xml_writer:to_string({"items", [],
+				       [entry_to_xml(URL, Entry)
+					|| {URL, Entry} <- Entries3]}))}.
 
 xslt_feed_items(URL) ->
     xslt_feed_items(URL, 23).
 
 xslt_feed_items(URL, Max) ->
-    io:format("xslt_feed_items(~p, ~p)~n",[URL, Max]),
+    %%io:format("xslt_feed_items(~p, ~p)~n",[URL, Max]),
     Entries = storage:get_entries_by_feed_url(URL),
     Entries2 = lists:reverse(lists:sort(fun compare_entries/2, Entries)),
     {Entries3, _} = util:split(Max, Entries2),
-    {tree, xml_writer:to_string({"items", [],
-				 [entry_to_xml(URL, Entry)
-				  || Entry <- Entries3]})}.
+    {tree, ?UTF8(xml_writer:to_string({"items", [],
+				       [entry_to_xml(URL, Entry)
+					|| Entry <- Entries3]}))}.
 
 compare_entries(#entry{date = Date1}, #entry{date = Date2}) ->
     Date1 < Date2.
@@ -106,7 +107,7 @@ feed_to_xml(URL, Feed) ->
      el_for_val("rss", URL) ++
      el_for_val("link", Feed#feed.link) ++
      el_for_val("title", Feed#feed.title) ++
-     [{"description", [], Feed#feed.description}]
+     [{"description", [], Feed#feed.description}] %% TODO: text? markup!
     }.
 
 entry_to_xml(URL, Entry) ->

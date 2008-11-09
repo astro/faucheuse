@@ -1,4 +1,5 @@
-%% TODO: charsets
+%% TODO: <!DOCTYPE rss PUBLIC "-//Netscape Communications//DTD RSS 0.91//EN" "http://my.netscape.com/publish/formats/rss-0.91.dtd">
+
 -module(tagsoup_parser).
 
 -export([start_link/1, push/2, stop/1]).
@@ -335,12 +336,19 @@ convert_message_encoding(_Encoding, Msg) ->
 -define(DESIRED_ENCODING, "UTF-8").
 -define(FALLBACK_ENCODING, "ISO8859-1").
 try_convert_encoding(Encoding, Text) ->
-    case iconv:convert(Encoding, ?DESIRED_ENCODING,
+    %% UTF-8 to UTF-8 always highest priority, because detectable
+    case iconv:convert(?DESIRED_ENCODING, ?DESIRED_ENCODING,
 		       Text) of
 	{ok, Text2} ->
 	    Text2;
 	error ->
-	    {ok, Text2} = iconv:convert(?FALLBACK_ENCODING, ?DESIRED_ENCODING,
-					Text),
-	    Text2
+	    case iconv:convert(Encoding, ?DESIRED_ENCODING,
+			       Text) of
+		{ok, Text2} ->
+		    Text2;
+		error ->
+		    {ok, Text2} = iconv:convert(?FALLBACK_ENCODING, ?DESIRED_ENCODING,
+						Text),
+		    Text2
+	    end
     end.
