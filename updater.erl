@@ -13,6 +13,7 @@
 -define(TICK_INTERVAL, 1).
 -define(REFRESH_INTERVAL, 600).
 -record(state, {}).
+%% TODO: save ETag and Last-Modified
 -record(update, {url, last}).
 
 %%====================================================================
@@ -54,7 +55,7 @@ handle_call(tick, _From, State) ->
 		  mnesia:select(update,
 				[{#update{last = '$1',
 					  _ = '_'},
-				  [{'<', '$1', {const, TimeMin}}],
+				  [{'=<', '$1', {const, TimeMin}}],
 				  ['$_']}])
 	  end),
 
@@ -69,7 +70,8 @@ handle_call(tick, _From, State) ->
 			    case {lists:member(URL, Active), lists:member(URL, Inactive)} of
 				{true, false} ->
 				    mnesia:write(Update#update{last = util:current_timestamp()}),
-				    launch;
+				    error_logger:info_msg("Launching update for ~p~n", [URL]),
+				    update_job:start(URL);
 				{false, true} ->
 				    mnesia:delete(URL)
 			    end

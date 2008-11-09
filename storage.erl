@@ -17,20 +17,43 @@ init() ->
 
 put_feed(URL, Feed) ->
     F = fun() ->
+		mnesia:write_lock_table(feed_storage),
+		IsNew = (mnesia:read({feed_storage, URL}) =:= []),
 		mnesia:write(#feed_storage{url = URL,
 					   feed = Feed,
-					   last_seen = util:current_timestamp()})
+					   last_seen = util:current_timestamp()}),
+		IsNew
 	end,
-    {atomic, _} = mnesia:transaction(F).
+    {atomic, IsNew} = mnesia:transaction(F),
+    if
+	IsNew ->
+	    notify:notify(URL, {feed_new, Feed});
+	true ->
+	    notify:notify(URL, {feed_updated, Feed})
+    end.
 
 put_entry(URL, #entry{id = Id} = Entry) ->
     F = fun() ->
+		mnesia:write_lock_table(feed_storage),
+		%% Never apply new timestamps
+		{NewEntry, IsNew} =
+		    case mnesia:read({entry_storage, {URL, Id}}) of
+			[] -> {Entry, true};
+			[#entry_storage{entry = #entry{date = OldDate}}] ->
+			    {Entry#entry{date = OldDate}, false}
+		    end,
 		mnesia:write(#entry_storage{url_id = {URL, Id},
-					    entry = Entry,
-					    last_seen = util:current_timestamp()})
+					    entry = NewEntry,
+					    last_seen = util:current_timestamp()}),
+		IsNew
 	end,
-    {atomic, _} = mnesia:transaction(F).
-    
+    {atomic, IsNew} = mnesia:transaction(F),
+    if
+	IsNew ->
+	    notify:notify(URL, {entry_new, Entry});
+	true ->
+	    notify:notify(URL, {entry_updated, Entry})
+    end.
 
 atomic(Fun) ->
     case mnesia:transaction(Fun) of
