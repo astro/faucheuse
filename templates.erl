@@ -1,6 +1,6 @@
 -module(templates).
 
--export([run/0, run/2]).
+-export([start_link/1, process/2]).
 
 
 -include("feed.hrl").
@@ -8,62 +8,67 @@
 -define(NS_HARVESTER, "http://astroblog.spaceboyz.net/harvester/xslt-functions").
 
 
-run() ->
-    run("templates", "html").
-
-run(TemplateDir, OutputDir) ->
-    file:make_dir(OutputDir),
-    {ok, TemplateFiles} = file:list_dir(TemplateDir),
+start_link(Collections) ->
     {ok, P} = erlxslt:start_link("../erlang/erlxslt/erlxslt"),
     erlxslt:register_function(P, ?NS_HARVESTER,
 			      "collection-items",
-			      fun xslt_collection_items/1),
+			      fun() ->
+				      URLs =
+					  lists:foldl(
+					    fun({_, CollectionURLs}, R) ->
+						    CollectionURLs ++ R
+					    end, [], Collections),
+				      xslt_collection_items(URLs)
+			      end),
     erlxslt:register_function(P, ?NS_HARVESTER,
 			      "collection-items",
-			      fun xslt_collection_items/2),
+			      fun(Collection) ->
+				      {value, {_, URLs}} =
+					  lists:keysearch(list_to_atom(Collection), 1, Collections),
+				      xslt_collection_items(URLs)
+			      end),
+    erlxslt:register_function(P, ?NS_HARVESTER,
+			      "collection-items",
+			      fun(Collection, Max) ->
+				      {value, {_, URLs}} =
+					  lists:keysearch(list_to_atom(Collection), 1, Collections),
+				      xslt_collection_items(URLs, Max)
+			      end),
     erlxslt:register_function(P, ?NS_HARVESTER,
 			      "feed-items",
 			      fun xslt_feed_items/1),
     erlxslt:register_function(P, ?NS_HARVESTER,
 			      "feed-items",
 			      fun xslt_feed_items/2),
-    erlxslt:set_xml(P, ".", xml_writer:to_string(generate_root())),
-    
-    lists:foreach(
-      fun(TemplateFile) ->
-	      {ok, Bin} = 
-		  file:read_file(TemplateDir ++ "/" ++ TemplateFile),
-	      erlxslt:set_xslt(P, ".", binary_to_list(Bin)),
-	      
-	      T1 = util:current_timestamp_ms(),
-	      {ok, _, Output} = erlxslt:process(P),
-	      io:format("XSLT: ~p us~n", [util:current_timestamp_ms() - T1]),
-	      
-	      file:write_file(OutputDir ++ "/" ++ TemplateFile,
-			      Output)
-      end, TemplateFiles),
-    ok.
+    erlxslt:set_xml(P, "collections.xml",
+		    xml_writer:to_string(generate_root(Collections))),
+    {ok, P}.
 
-generate_root() ->
+process(P, XsltFile) ->
+    io:format("reading xslt file ~p~n",[XsltFile]),
+    {ok, Bin} = 
+	file:read_file(XsltFile),
+    erlxslt:set_xslt(P, XsltFile, binary_to_list(Bin)),
+
+    T1 = util:current_timestamp_ms(),
+    {ok, Type, Output} = erlxslt:process(P),
+    io:format("XSLT: ~p us~n", [util:current_timestamp_ms() - T1]),
+	      
+    {ok, Type, Output}.
+
+generate_root(Collections) ->
     {"collections", [],
      [{"collection", [{"name", atom_to_list(Name)}],
        [feed_to_xml(URL, Feed)
 	|| {URL, Feed} <- [{URL, storage:get_feed_by_url(URL)}
 			   || URL <- URLs],
 	   element(1, Feed) =:= feed]}
-      || {Name, URLs} <- config:collections()]}.
+      || {Name, URLs} <- Collections]}.
 
-xslt_collection_items(Collection) ->
-    xslt_collection_items(Collection, 23).
+xslt_collection_items(CollectionURLs) ->
+    xslt_collection_items(CollectionURLs, 23).
 
-xslt_collection_items(Collection, Max) ->
-    io:format("ci(~p)~n",[Collection]),
-    CollectionURLs = case Collection of
-			 "%" ->
-			     config:all_urls();
-			 _ ->
-			     config:collection_urls(Collection)
-		     end,
+xslt_collection_items(CollectionURLs, Max) ->
     Entries =
 	lists:foldl(
 	  fun(CollectionURL, Entries) ->

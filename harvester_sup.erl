@@ -20,6 +20,7 @@ start_link() ->
 %% Supervisor callbacks
 %%====================================================================
 init([]) ->
+    application:start(sasl),
     mnesia:create_schema([node()]),
     mnesia:start(),
     entities:init(),
@@ -35,9 +36,9 @@ init([]) ->
 			     {http_client, {http_client, start_link, []},
 			      permanent, 4000, worker, [http_client, http_connection]},
 			     {updater, {updater, start_link, []},
-			      permanent, 4000, worker, [updater]},
+			      permanent, 1000, worker, [updater]},
 			     {notify, {notify, start_link, []},
-			      permanent, 4000, worker, [notify]}
+			      permanent, 1000, worker, [notify]}
 			     | ConfigWorkers
 			    ]}}.
 
@@ -59,11 +60,10 @@ config_workers(Filename) ->
 				   [Filename, Reason]),
 	    exit(file_error);
 	{ok, [WorkerConfig]} ->
-%	    {ok, lists:map(fun worker_config2config_workers/1,
-%			   WorkerConfig)}
-	    {ok, []}
+	    {ok, lists:map(fun worker_config2config_workers/1,
+			   WorkerConfig)}
     end.
 
 worker_config2config_workers({web, Port, Handlers}) ->
     {webserver, {webserver, start_link, [Port, Handlers]},
-     permanent, 1000, worker, [webserver]}.
+     permanent, 1000, supervisor, [webserver]}.

@@ -10,7 +10,7 @@
 	 terminate/2, code_change/3]).
 
 -define(SERVER, ?MODULE).
--define(TICK_INTERVAL, 1).
+-define(TICK_INTERVAL, 1000).
 -define(REFRESH_INTERVAL, 600).
 -record(state, {}).
 %% TODO: save ETag and Last-Modified
