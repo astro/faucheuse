@@ -1,5 +1,7 @@
 short braindump on how to run it:
 
 code:add_path(".../erlxslt").
-harvest:run().
-templates:run().
+harvester_sup:start_link().
+
+point browser to: http://localhost:8080/harvester/index.html
+

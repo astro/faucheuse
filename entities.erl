@@ -17,9 +17,9 @@ escape([$> | S], R) ->
     escape(S, [$;, $t, $g, $& | R]);
 escape([$& | S], R) ->
     escape(S, [$;, $p, $m, $a, $& | R]);
-escape([$\" | S], R) ->
+escape([$" | S], R) ->
     escape(S, [$;, $t, $o, $u, $q, $& | R]);
-escape([$\' | S], R) ->
+escape([$' | S], R) ->
     escape(S, [$;, $s, $o, $p, $a, $& | R]);
 escape([C | S], R) ->
     escape(S, [C | R]).
