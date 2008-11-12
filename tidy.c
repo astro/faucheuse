@@ -33,7 +33,7 @@ int main(int argc, char **argv )
 
     TidyDoc tdoc = tidyCreate();                     // Initialize "document"
 
-    ok = tidyOptSetBool( tdoc, TidyXhtmlOut, yes );  // Convert to XHTML
+    ok = tidyOptSetBool( tdoc, TidyXhtmlOut, 1 );  // Convert to XHTML
     /*if ( ok )
       ok = tidyOptSetBool( tdoc, TidyBodyOnly, yes );*/
     if ( ok )
@@ -49,7 +49,7 @@ int main(int argc, char **argv )
     if ( rc >= 0 )
       rc = tidyRunDiagnostics( tdoc );               // Kvetch
     if ( rc > 1 )                                    // If error, force output.
-      rc = ( tidyOptSetBool(tdoc, TidyForceOutput, yes) ? rc : -1 );
+      rc = ( tidyOptSetBool(tdoc, TidyForceOutput, 1) ? rc : -1 );
     if ( rc >= 0 )
       rc = tidySaveBuffer( tdoc, &output );          // Pretty Print
 

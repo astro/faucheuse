@@ -34,7 +34,7 @@ put_feed(URL, Feed) ->
 
 put_entry(URL, #entry{id = Id} = Entry) ->
     F = fun() ->
-		mnesia:write_lock_table(feed_storage),
+		mnesia:write_lock_table(entry_storage),
 		%% Never apply new timestamps
 		{NewEntry, IsNew} =
 		    case mnesia:read({entry_storage, {URL, Id}}) of
