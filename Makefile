@@ -14,10 +14,11 @@ iconv_erl.so: iconv_erl.c
 	-I/usr/lib/erlang/lib/erl_interface-3.5.7/include \
 	-I/usr/lib/erlang/usr/include \
 	-L/usr/lib/erlang/lib/erl_interface-3.5.7/lib \
+	-liconv \
 	-lerl_interface -lei
 
 tidy: tidy.c
-	$(CC) $(CFLAGS) -c $< -o $@ \
+	$(CC) $(CFLAGS) $< -o $@ \
 	-I/usr/include/tidy \
 	-ltidy
 
