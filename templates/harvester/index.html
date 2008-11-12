@@ -142,7 +142,8 @@
 	      </div>
               <h3 class="entry-title"><a href="{link}" rel="bookmark"><xsl:value-of select="title"/></a></h3>
               <div class="entrydesc entry-content">
-		<xsl:copy-of select="description/*"/>
+		<xsl:copy-of select="xhtml:description/*"
+			     xmlns:xhtml="http://www.w3.org/1999/xhtml"/>
               </div>
 	      
               <!--xsl:variable name="enclosures" select="hv:item-enclosures(string($rss), string(link))"/>

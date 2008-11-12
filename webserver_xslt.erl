@@ -43,9 +43,12 @@ handle_call(#req{uri = Uri}, _From,
     case (catch templates:process(Processor,
 				  TemplatesPath ++ "/" ++ Uri2)) of
 	{ok, Type, Result} ->
+	    io:format("ok~n"),
 	    {reply, {respond, 200, [{"Content-type", Type}], Result}, State};
 	{'EXIT', {{badmatch,{error,enoent}},_}} ->
-	    {reply, {respond, 404, [], ""}, State}
+	    {reply, {respond, 404, [{"Content-type", "text/html"}], "Not found"}, State};
+	{'EXIT', Reason} ->
+	    {reply, {respond, 500, [{"Content-type", "text/plain"}], io_lib:format("~p", [Reason])}, State}
     end.
 
 handle_cast(_Msg, State) ->

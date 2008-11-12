@@ -6,6 +6,7 @@
 -include("feed.hrl").
 
 -define(NS_HARVESTER, "http://astroblog.spaceboyz.net/harvester/xslt-functions").
+-define(NS_XHTML, "http://www.w3.org/1999/xhtml").
 
 -define(UTF8(S), "<?xml version=\"1.0\" encoding=\"UTF-8\"?>" ++ S).
 
@@ -107,7 +108,7 @@ feed_to_xml(URL, Feed) ->
      el_for_val("rss", URL) ++
      el_for_val("link", Feed#feed.link) ++
      el_for_val("title", Feed#feed.title) ++
-     [{"description", [], Feed#feed.description}] %% TODO: text? markup!
+     [{"description", [{"xmlns", ?NS_XHTML}], Feed#feed.description}] %% TODO: text? markup!
     }.
 
 entry_to_xml(URL, Entry) ->
@@ -117,7 +118,7 @@ entry_to_xml(URL, Entry) ->
      el_for_val("date", Entry#entry.date) ++
      el_for_val("title", Entry#entry.title) ++
      el_for_val("link", Entry#entry.link) ++
-     [{"description", [], Entry#entry.description}]
+     [{"description", [{"xmlns", ?NS_XHTML}], Entry#entry.description}]
     }.
 
 el_for_val(_, undefined) ->
