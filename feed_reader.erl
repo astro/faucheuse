@@ -148,7 +148,7 @@ fix_entry(#entry{id = Id,
 	    %% Linkify
 	    Link2 = url:to_string(url:join(BaseURL, Link)),
 	    %% Tidy up
-	    Description3 = if
+	    Description2 = if
 			       is_list(Description) ->
 				   make_html(Description, State);
 			       true ->
@@ -158,7 +158,7 @@ fix_entry(#entry{id = Id,
 	    %% script tags and seperate from feed_reader
 	    Entry#entry{id = Id2,
 			link = Link2,
-			description = Description3};
+			description = Description2};
 	true ->
 	    false
     end.
@@ -319,14 +319,14 @@ start_element(#state{stack = ["link", "entry", "feed"],
 		entry = Entry#entry{link = NewLink}};
 
 start_element(#state{stack = [_, "entry", "feed"]} = State, Attrs) ->
-    State#state{record = record_by_atom_type(get_attr_s("type", Attrs))};
+    State#state{record = record_by_atom_mode(Attrs)};
 
 start_element(#state{stack = ["entry", "feed"]} = State, _) ->
     feed_info_complete(State#state{record = false,
 				   entry = #entry{}});
 
 start_element(#state{stack = [_, "feed"]} = State, Attrs) ->
-    State#state{record = record_by_atom_type(get_attr_s("type", Attrs))};
+    State#state{record = record_by_atom_mode(Attrs)};
 
 %% Fall-through
 
@@ -365,6 +365,7 @@ end_element(#state{stack = [Tag | Stack],
 		   entry = Entry} = State)
   when Stack =:= ["item", "channel", "rss"];
        Stack =:= ["item", "rdf"] ->
+    %%io:format("recorded ~p: ~s~n",[[Tag | Stack],Current]),
     State#state{record = false,
 		entry = rss_channel_item(Entry, Tag, Current)};
 
@@ -409,6 +410,7 @@ end_element(State) ->
 %% RSS
 
 rss_channel(Feed, "title", Text) ->
+    io:format("applying title: ~p~n",[Text]),
     Feed#feed{title = Text};
 rss_channel(Feed, "link", Text) ->
     Feed#feed{link = Text};
@@ -426,9 +428,9 @@ rss_channel_item(Entry, "link", Text) ->
 %% <content:encoded/>
 rss_channel_item(Entry, "encoded", Text) ->
     Entry#entry{description = Text};
-rss_channel_item(#entry{description = undefined} = Entry, "encoded", Text) ->
+rss_channel_item(#entry{description = ""} = Entry, "encoded", Text) ->
     Entry#entry{description = Text};
-rss_channel_item(#entry{description = undefined} = Entry, "description", Text) ->
+rss_channel_item(#entry{description = ""} = Entry, "description", Text) ->
     Entry#entry{description = Text};
 rss_channel_item(Entry, "pubDate", Text) ->
     Entry#entry{date = parse_date(Text)};
@@ -468,8 +470,17 @@ atom_entry(Entry, _, _) ->
     Entry.
 
 
-record_by_atom_type("html") -> text;
-record_by_atom_type(_) -> markup.
+record_by_atom_mode(Attrs) ->
+    Mode =
+	case get_attr_s("mode", Attrs) of
+	    "" -> get_attr_s("type", Attrs);
+	    M -> M
+	end,
+    record_by_atom_mode1(Mode).
+
+record_by_atom_mode1("html") -> text;
+record_by_atom_mode1("escaped") -> text;
+record_by_atom_mode1(_) -> markup.
 
 
 
