@@ -20,13 +20,6 @@ start_link() ->
 %% Supervisor callbacks
 %%====================================================================
 init([]) ->
-    code:add_path("vendor/erlxslt"),
-    code:add_path("vendor/iserve/ebin"),
-    application:start(sasl),
-    mnesia:create_schema([node()]),
-    mnesia:start(),
-    entities:init(),
-    storage:init(),
     {ok, ConfigWorkers} = config_workers(),
     {ok,{{one_for_one,2,1}, [
 			     {iconv, {iconv, start_link, []},

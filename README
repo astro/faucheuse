@@ -1,7 +1,7 @@
 short braindump on how to run it:
 
 erl
-harvester_sup:start_link().
+application:start(faucheuse).
 
 point browser to: http://localhost:8080/harvester/index.html
 

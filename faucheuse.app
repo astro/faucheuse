@@ -1,0 +1,21 @@
+{application, faucheuse,
+ [{description, "Feed Aggregator"},
+  {id,           "faucheuse"},
+  {vsn,          "v0.1"},
+  {modules,      [dns_cache, dns_worker, entities,
+		  faucheuse, feed_reader, harvester_sup,
+		  http_client, http_connection, http_perftest,
+		  iconv, notify, storage,
+		  tagsoup_parser, tagsoup_reader, tagsoup_tester,
+		  tagsoup_tests, templates, tidy,
+		  update_job, updater, url,
+		  util, webserver, webserver_static,
+		  webserver_xslt, xml_writer]},
+  {registered,   [harvester_sup, webserver, updater,
+		  tidy, notify, iconv,
+		  http_client, dns_cache]},
+  {applications, [sasl]},
+  {env,          [{config, "faucheuse.cfg"}]},
+  {mod,          {faucheuse, []}}
+]}.
+
