@@ -4,7 +4,8 @@
 		xmlns:xsl="http://www.w3.org/1999/XSL/Transform"
 		xmlns:hv="http://astroblog.spaceboyz.net/harvester/xslt-functions"
 		xmlns:date="http://exslt.org/dates-and-times"
-		exclude-result-prefixes="xsl hv date">
+		xmlns:xhtml="http://www.w3.org/1999/xhtml"
+		exclude-result-prefixes="xsl hv date xhtml">
   
   <xsl:output method="xml"
               version="1.0"
@@ -106,7 +107,7 @@
 		<xsl:variable name="title" select="title"/>
 		<xsl:variable name="link" select="link"/>
 
-		<xsl:for-each select="description//img">
+		<xsl:for-each select="xhtml:description//xhtml:img">
 		  <li>
 		    <a href="{$link}">
 		      <img src="{@src}" title="{$title}"/>
@@ -142,8 +143,7 @@
 	      </div>
               <h3 class="entry-title"><a href="{link}" rel="bookmark"><xsl:value-of select="title"/></a></h3>
               <div class="entrydesc entry-content">
-		<xsl:copy-of select="xhtml:description/*"
-			     xmlns:xhtml="http://www.w3.org/1999/xhtml"/>
+		<xsl:copy-of select="xhtml:description/*"/>
               </div>
 	      
               <!--xsl:variable name="enclosures" select="hv:item-enclosures(string($rss), string(link))"/>
