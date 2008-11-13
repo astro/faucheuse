@@ -127,6 +127,7 @@ test() ->
 init() ->
     mnesia:create_table(html_entity,
 			[{attributes, record_info(fields, html_entity)}]),
+    ok = mnesia:wait_for_tables([html_entity], 1000),
     populate_html_entities_from_file("HTMLlat1.ent"),
     populate_html_entities_from_file("HTMLspecial.ent"),
     populate_html_entities_from_file("HTMLsymbol.ent"),
