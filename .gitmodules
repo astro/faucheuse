@@ -1,0 +1,6 @@
+[submodule "vendor/erlxslt"]
+	path = vendor/erlxslt
+	url = git://github.com/astro/erlxslt.git
+[submodule "vendor/iserve"]
+	path = vendor/iserve
+	url = git://www.tornkvist.org/iserve
