@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<xsl:stylesheet version="1.0"
+		xmlns="http://www.w3.org/1999/xhtml"
+		xmlns:xsl="http://www.w3.org/1999/XSL/Transform"
+		xmlns:hv="http://astroblog.spaceboyz.net/harvester/xslt-functions"
+		xmlns:date="http://exslt.org/dates-and-times"
+		exclude-result-prefixes="xsl hv date">
+  
+  <xsl:output method="xml"
+              version="1.0"
+              encoding="utf-8"
+              doctype-public="-//W3C//DTD XHTML 1.0 Strict//EN"
+              doctype-system="DTD/xhtml1-strict.dtd"
+              indent="yes"/>
+  
+  
+  <xsl:template match="/collections">
+    <html xmlns="http://www.w3.org/1999/xhtml" lang="de">
+      <head>
+	<title>astro updates</title>
+	<link rel="alternate" type="application/atom+xml" title="ATOM 1.0" href="atom.xml" />
+	<link rel="alternate" type="application/rss+xml" title="RSS 2.0" href="rss.rdf" />
+	<meta http-equiv="Content-Type" content="application/xml+xhtml; charset=utf-8"/>
+	<link rel="stylesheet" type="text/css" href="../static/astro.css"/>
+	<link rel="shortcut icon" type="image/gif" href="harvester.gif"/>
+      </head>
+      
+      <body>
+	<div class="head">
+	  <h1>
+	    <span id="astro">astro</span>
+	    <span id="updates">updates</span>
+	  </h1>
+	</div>
+      </body>
+    </html>
+  </xsl:template>
+</xsl:stylesheet>
