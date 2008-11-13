@@ -67,6 +67,14 @@ push_back(#state{buffer = Buffer} = State, Chars) ->
 
 %% Parsing
 
+parse_until(State, Until) ->
+    case pull(State) of
+	{NewState, Until} ->
+	    NewState;
+	{NewState, _C} ->
+	    parse_until(NewState, Until)
+    end.
+
 parse_text(State) ->
     parse_text(State, "").
 
@@ -99,6 +107,9 @@ parse_tag(State) ->
 parse_tag(State, Name) ->
     {NewState, C} = pull(State),
     case {Name, C} of
+	{"", $!} ->
+	    NewState2 = parse_until(NewState, $>),
+	    parse_tag(NewState2);
 	{"-!", $-} ->
 	    parse_comment(NewState);
 	%% <![CDATA[
