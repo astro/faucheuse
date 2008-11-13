@@ -10,7 +10,7 @@
 	 terminate/2, code_change/3]).
 
 -record(state, {templates_path, collections, processor}).
--include("iserve.hrl").
+-include("vendor/iserve/include/iserve.hrl").
 
 %%====================================================================
 %% API

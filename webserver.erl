@@ -9,7 +9,7 @@
 -export([init/1]).
 
 -define(SERVER, ?MODULE).
--include("iserve.hrl").
+-include("vendor/iserve/include/iserve.hrl").
 
 %%====================================================================
 %% API functions
@@ -17,7 +17,7 @@
 start_link(Port, Config) ->
     supervisor:start_link({local, ?SERVER}, ?MODULE, [Port, Config]).
 
-iserve_request(C, #req{uri = {abs_path, Path}} = Req) ->
+iserve_request(_C, #req{uri = {abs_path, Path}} = Req) ->
     Handled =
 	lists:foldl(
 	  fun({Id,Child,_Type,_Modules}, false) ->

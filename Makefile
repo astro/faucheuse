@@ -4,9 +4,14 @@ CC=gcc
 CFLAGS=-g -O2 -Wall
 LD=gcc
 
-all: tidy iconv_erl.so \
+all: vendor tidy iconv_erl.so \
 	$(patsubst %.erl, %.beam, \
 	$(wildcard *.erl))
+
+.PHONY: vendor
+vendor:
+	$(MAKE) -C vendor/erlxslt
+	$(MAKE) -C vendor/iserve
 
 iconv_erl.so: iconv_erl.c
 	$(CC) $(CFLAGS) $< -o $@ \
@@ -22,5 +27,5 @@ tidy: tidy.c
 	-I/usr/include/tidy \
 	-ltidy
 
-%.beam: %.erl
+ %.beam: %.erl
 	$(ERLC) $(ERLCFLAGS) $<

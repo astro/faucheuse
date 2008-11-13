@@ -11,7 +11,7 @@
 
 -define(SERVER, ?MODULE).
 -define(TICK_INTERVAL, 1000).
--define(REFRESH_INTERVAL, 600).
+-define(REFRESH_INTERVAL, 1800).
 -record(state, {}).
 %% TODO: save ETag and Last-Modified
 -record(update, {url, last}).

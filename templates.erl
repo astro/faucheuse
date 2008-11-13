@@ -11,7 +11,7 @@
 -define(UTF8(S), "<?xml version=\"1.0\" encoding=\"UTF-8\"?>" ++ S).
 
 start_link(Collections) ->
-    {ok, P} = erlxslt:start_link("../erlang/erlxslt/erlxslt"),
+    {ok, P} = erlxslt:start_link("vendor/erlxslt/erlxslt"),
     erlxslt:register_function(P, ?NS_HARVESTER,
 			      "collection-items",
 			      fun() ->
