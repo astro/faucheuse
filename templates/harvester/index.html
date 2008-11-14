@@ -55,20 +55,16 @@
             <p>
               The Harvester is made of fresh flesh from the blogosphere,
               clean design by Tigion
-              and hacked-together Ruby scripts by Astro,
-              improved by Neingeist and Josef.
+              and runs on the Faucheuse server by Astro.
             </p>
           </div>
           <div class="ticker">
             <h2>To be fed</h2>
             <p>
-              Just blogs: <a href="atom.xml">ATOM 1.0</a> or <a href="rss.rdf">RSS 2.0</a>,
-            </p>
-            <p>
-              All collections: <a href="atom-all.xml">ATOM 1.0</a> or <a href="rss-all.rdf">RSS 2.0</a>
+              <a href="atom.xml">ATOM 1.0</a> or <a href="rss.rdf">RSS 2.0</a>
             </p>
           </div>
-          <div class="ticker">
+          <!--div class="ticker">
             <h2>Be notified</h2>
             <p>Start Jabber and talk to <a href="xmpp:astrobot@spaceboyz.net">AstroBot</a> to receive the freshest of all!</p>
           </div>
@@ -96,8 +92,14 @@
               <li><a href="../harvester-0.3.tar.bz2">harvester-0.3.tar.bz2</a> (8411 Bytes, <a href="../harvester-0.3.tar.bz2.sig">Sig</a>)</li>
               <li><a href="../harvester-0.2.tar.bz2">harvester-0.2.tar.bz2</a> (4184 Bytes, <a href="../harvester-0.2.tar.bz2.sig">Sig</a>)</li>
             </ul>
-          </div>
+          </div-->
 
+          <xsl:call-template name="ticker-boxen">
+            <xsl:with-param name="collection" select="'links'"/>
+          </xsl:call-template>
+	</div>
+	
+        <div class="tickers2">
 	  <div class="ticker">
 	    <h2>Photos</h2>
 
@@ -120,12 +122,6 @@
 	  
           <xsl:call-template name="ticker-boxen">
             <xsl:with-param name="collection" select="'ticker'"/>
-          </xsl:call-template>
-	</div>
-	
-        <div class="tickers2">
-          <xsl:call-template name="ticker-boxen">
-            <xsl:with-param name="collection" select="'links'"/>
           </xsl:call-template>
         </div>
 	
