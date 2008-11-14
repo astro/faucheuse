@@ -107,11 +107,11 @@ parse_tag(State) ->
 parse_tag(State, Name) ->
     {NewState, C} = pull(State),
     case {Name, C} of
-	{"", $!} ->
-	    NewState2 = parse_until(NewState, $>),
-	    parse_tag(NewState2);
 	{"-!", $-} ->
 	    parse_comment(NewState);
+	{[_ | "!"], $_} ->
+	    NewState2 = parse_until(NewState, $>),
+	    parse_tag(NewState2);
 	%% <![CDATA[
 	{"ATADC[!", $\[} ->
 	    parse_cdata(NewState);

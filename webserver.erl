@@ -3,21 +3,26 @@
 -behaviour(supervisor).
 
 %% API
--export([start_link/2, iserve_request/2]).
+-export([proc_for_port/1, start_link/2, iserve_request/2]).
 
 %% Supervisor callbacks
 -export([init/1]).
 
--define(SERVER, ?MODULE).
 -include("vendor/iserve/include/iserve.hrl").
 
 %%====================================================================
 %% API functions
 %%====================================================================
-start_link(Port, Config) ->
-    supervisor:start_link({local, ?SERVER}, ?MODULE, [Port, Config]).
+proc_for_port(Port) ->
+    list_to_atom(atom_to_list(?MODULE) ++ "-" ++ integer_to_list(Port)).
 
-iserve_request(_C, #req{uri = {abs_path, Path}} = Req) ->
+start_link(Port, Config) ->
+    ProcName = proc_for_port(Port),
+    supervisor:start_link({local, ProcName}, ?MODULE, [Port, Config]).
+
+iserve_request({c, _Sock, Port, _PeerAddr, _PeerPort, _CbMod, _CbData},
+	       #req{uri = {abs_path, Path}} = Req) ->
+    ProcName = proc_for_port(Port),
     Handled =
 	lists:foldl(
 	  fun({Id,Child,_Type,_Modules}, false) ->
@@ -34,7 +39,7 @@ iserve_request(_C, #req{uri = {abs_path, Path}} = Req) ->
 		  end;
 	     (_, R) ->
 		  R
-	  end, false, supervisor:which_children(?SERVER)),
+	  end, false, supervisor:which_children(ProcName)),
     case Handled of
 	false ->
 	    {respond, 404, [], "Not found"};
