@@ -139,7 +139,7 @@
 	      </div>
               <h3 class="entry-title"><a href="{link}" rel="bookmark"><xsl:value-of select="title"/></a></h3>
               <div class="entrydesc entry-content">
-		<xsl:copy-of select="xhtml:description/*"/>
+		<xsl:apply-templates select="xhtml:description" mode="description"/>
               </div>
 	      
               <!--xsl:variable name="enclosures" select="hv:item-enclosures(string($rss), string(link))"/>
@@ -204,7 +204,15 @@
       </div>
     </xsl:for-each>
   </xsl:template>
-  
+
+  <xsl:template match="xhtml:description" mode="description">
+    <xsl:apply-templates mode="description"/>
+  </xsl:template>
+
+  <xsl:template match="xhtml:description/*" mode="description">
+    <xsl:copy-of select="."/>
+  </xsl:template>
+
   <xsl:template name="format-enclosure-length">
     <xsl:param name="length"/>
     
