@@ -109,7 +109,7 @@ parse_tag(State, Name) ->
     case {Name, C} of
 	{"-!", $-} ->
 	    parse_comment(NewState);
-	{[_ | "!"], $_} ->
+	{[_ | "!"], _} ->
 	    NewState2 = parse_until(NewState, $>),
 	    parse_tag(NewState2);
 	%% <![CDATA[
