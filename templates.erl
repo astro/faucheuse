@@ -8,7 +8,7 @@
 -define(NS_HARVESTER, "http://astroblog.spaceboyz.net/harvester/xslt-functions").
 -define(NS_XHTML, "http://www.w3.org/1999/xhtml").
 
--define(UTF8(S), "<?xml version=\"1.0\" encoding=\"UTF-8\"?>" ++ S).
+-define(UTF8(S), "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n\n" ++ S).
 
 start_link(Collections) ->
     {ok, P} = erlxslt:start_link("vendor/erlxslt/erlxslt"),
@@ -42,8 +42,8 @@ start_link(Collections) ->
     erlxslt:register_function(P, ?NS_HARVESTER,
 			      "feed-items",
 			      fun xslt_feed_items/2),
-    erlxslt:set_xml(P, "collections.xml",
-		    ?UTF8(xml_writer:to_string(generate_root(Collections)))),
+    Root = ?UTF8(xml_writer:to_string(generate_root(Collections))),
+    erlxslt:set_xml(P, "collections.xml", Root),
     {ok, P}.
 
 process(P, XsltFile) ->
