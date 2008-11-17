@@ -109,7 +109,9 @@ parse_tag(State, Name) ->
     case {Name, C} of
 	{"-!", $-} ->
 	    parse_comment(NewState);
-	{[_ | "!"], _} ->
+	{"!", C} when C >= $A,
+		      C =< $Z ->
+	    io:format("BANG: ~p~n", ["!" ++ [C]]),
 	    NewState2 = parse_until(NewState, $>),
 	    parse_tag(NewState2);
 	%% <![CDATA[
