@@ -11,7 +11,7 @@
 <xsl:output method="xml"
             version="1.0"
             encoding="utf-8"
-            media-type="application/atom+xml"
+	    media-type="application/atom+xml"
             indent="yes"/>
 
 <xsl:template match="/collections">
@@ -55,7 +55,7 @@
         <link href="{$feed/link}" rel="via" type="text/html"/>
         <content type="xhtml">
           <!--div xmlns="http://www.w3.org/1999/xhtml"-->
-	    <xsl:copy-of select="xhtml:description/*"/>
+	    <xsl:apply-templates select="xhtml:description" mode="description"/>
           <!--/div-->
         </content>
         <updated><xsl:value-of select="date"/></updated>
@@ -84,6 +84,14 @@
       </entry>
     </xsl:for-each>
   </feed>
+</xsl:template>
+
+<xsl:template match="xhtml:description" mode="description">
+  <xsl:apply-templates mode="description"/>
+</xsl:template>
+
+<xsl:template match="xhtml:description/*" mode="description">
+  <xsl:copy-of select="."/>
 </xsl:template>
 
 </xsl:stylesheet>

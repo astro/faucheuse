@@ -1,9 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <xsl:stylesheet version="1.0"
-  xmlns:xsl="http://www.w3.org/1999/XSL/Transform"
-  xmlns:hv="http://astroblog.spaceboyz.net/harvester/xslt-functions"
-  xmlns:date="http://exslt.org/dates-and-times"
-  exclude-result-prefixes="xsl hv date">
+		xmlns:xsl="http://www.w3.org/1999/XSL/Transform"
+		xmlns:hv="http://astroblog.spaceboyz.net/harvester/xslt-functions"
+		xmlns:date="http://exslt.org/dates-and-times"
+		xmlns:xhtml="http://www.w3.org/1999/xhtml"
+		exclude-result-prefixes="xsl hv date xhtml">
 
 <xsl:output method="xml"
             version="1.0"
@@ -51,9 +52,7 @@
                                         )"/>
           </pubDate>
           <description>
-	    <xsl:apply-templates mode="description"
-				 select="xhtml:description/*"
-				 xmlns:xhtml="http://www.w3.org/1999/xhtml"/>
+	    <xsl:apply-templates select="xhtml:description" mode="description"/>
           </description>
           <source url="{$feed/link}"><xsl:value-of select="$feed/title"/></source>
 
@@ -82,6 +81,10 @@
 
     </channel>
   </rss>
+</xsl:template>
+
+<xsl:template match="xhtml:description" mode="description">
+  <xsl:apply-templates mode="description"/>
 </xsl:template>
 
 <xsl:template match="*" mode="description">
