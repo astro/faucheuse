@@ -1,6 +1,7 @@
 -module(templates).
 
 -export([start_link/1, process/2]).
+-export([generate_root/1, xslt_collection_items/1]).
 
 
 -include("feed.hrl").
@@ -10,9 +11,12 @@
 
 -define(UTF8(S), "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n\n" ++ S).
 
+-record(state, {xslt,
+		collections}).
+
 start_link(Collections) ->
-    {ok, P} = erlxslt:start_link("vendor/erlxslt/erlxslt"),
-    erlxslt:register_function(P, ?NS_HARVESTER,
+    {ok, Xslt} = erlxslt:start_link("vendor/erlxslt/erlxslt"),
+    erlxslt:register_function(Xslt, ?NS_HARVESTER,
 			      "collection-items",
 			      fun() ->
 				      URLs =
@@ -22,38 +26,40 @@ start_link(Collections) ->
 					    end, [], Collections),
 				      xslt_collection_items(URLs)
 			      end),
-    erlxslt:register_function(P, ?NS_HARVESTER,
+    erlxslt:register_function(Xslt, ?NS_HARVESTER,
 			      "collection-items",
 			      fun(Collection) ->
 				      {value, {_, URLs}} =
 					  lists:keysearch(list_to_atom(Collection), 1, Collections),
 				      xslt_collection_items(URLs)
 			      end),
-    erlxslt:register_function(P, ?NS_HARVESTER,
+    erlxslt:register_function(Xslt, ?NS_HARVESTER,
 			      "collection-items",
 			      fun(Collection, Max) ->
 				      {value, {_, URLs}} =
 					  lists:keysearch(list_to_atom(Collection), 1, Collections),
 				      xslt_collection_items(URLs, Max)
 			      end),
-    erlxslt:register_function(P, ?NS_HARVESTER,
+    erlxslt:register_function(Xslt, ?NS_HARVESTER,
 			      "feed-items",
 			      fun xslt_feed_items/1),
-    erlxslt:register_function(P, ?NS_HARVESTER,
+    erlxslt:register_function(Xslt, ?NS_HARVESTER,
 			      "feed-items",
 			      fun xslt_feed_items/2),
-    Root = ?UTF8(xml_writer:to_string(generate_root(Collections))),
-    erlxslt:set_xml(P, "collections.xml", Root),
-    {ok, P}.
+    {ok, #state{xslt = Xslt,
+		collections = Collections}}.
 
-process(P, XsltFile) ->
+process(#state{xslt = Xslt,
+	       collections = Collections}, XsltFile) ->
+    Root = ?UTF8(xml_writer:to_string(generate_root(Collections))),
+    erlxslt:set_xml(Xslt, "collections.xml", Root),
     io:format("reading xslt file ~p~n",[XsltFile]),
     {ok, Bin} = 
 	file:read_file(XsltFile),
-    erlxslt:set_xslt(P, XsltFile, binary_to_list(Bin)),
+    erlxslt:set_xslt(Xslt, XsltFile, binary_to_list(Bin)),
 
     T1 = util:current_timestamp_ms(),
-    {ok, Type, Output} = erlxslt:process(P),
+    {ok, Type, Output} = erlxslt:process(Xslt),
     io:format("XSLT: ~p us~n", [util:current_timestamp_ms() - T1]),
 	      
     {ok, Type, Output}.
